@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 238f4c6802c54d068c9f8378dd227cae, type: 3}
+  m_Name: fire_damage
+  m_EditorClassIdentifier: 
+  nodeId: fire_damage
+  displayName: Fire Damage
+  icon: {fileID: 21300000, guid: df4b700779b4d064f88193e0452314f4, type: 3}
+  description: 
+  branch: 0
+  maxRanks: 1
+  costsPerRank: []
+  prerequisites:
+  - node: {fileID: 11400000, guid: 074a82ff479ee6048b688751c1265b5f, type: 2}
+    requiredRank: 1
+  effects:
+  - rid: 8457167839721160771
+  useGlobalVisibilityRules: 0
+  revealBoxRank: 0
+  revealInfoRank: 0
+  unlockRank: 0
+  graphPosition: {x: 700, y: 280}
+  references:
+    version: 2
+    RefIds:
+    - rid: 8457167839721160771
+      type: {class: StatMultiplierEffect, ns: JollyLlama.SkillTreeSystem, asm: Assembly-CSharp}
+      data:
+        statType: 0
+        multiplier: 2

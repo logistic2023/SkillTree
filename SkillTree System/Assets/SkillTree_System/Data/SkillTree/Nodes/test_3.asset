@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 238f4c6802c54d068c9f8378dd227cae, type: 3}
+  m_Name: test_3
+  m_EditorClassIdentifier: 
+  nodeId: test_3
+  displayName: test 3
+  icon: {fileID: 0}
+  description: 
+  branch: 0
+  maxRanks: 1
+  goldCostPerRank: 100
+  shardCostPerRank: 0
+  prerequisites:
+  - node: {fileID: 11400000, guid: f27c148703eebcf44a7ccb7ec2522cea, type: 2}
+    requiredRank: 1
+  effects: []
+  useGlobalVisibilityRules: 1
+  revealBoxRank: 0
+  revealInfoRank: 1
+  unlockRank: 0
+  graphPosition: {x: 120, y: 360}
+  references:
+    version: 2
+    RefIds: []

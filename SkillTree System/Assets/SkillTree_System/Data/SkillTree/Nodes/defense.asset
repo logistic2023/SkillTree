@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 238f4c6802c54d068c9f8378dd227cae, type: 3}
+  m_Name: defense
+  m_EditorClassIdentifier: 
+  nodeId: Damage x 3
+  displayName: Damage x 3
+  icon: {fileID: 21300000, guid: b5f40b42ce02da34b8927f96da1d9d1d, type: 3}
+  description: Increment damage of enemies by 3
+  branch: 0
+  maxRanks: 1
+  costsPerRank:
+  - resource: {fileID: 11400000, guid: 18f537ef16f8f27488631113ec682176, type: 2}
+    amountPerRank: 25
+  prerequisites: []
+  effects:
+  - rid: 8457167862744744032
+  useGlobalVisibilityRules: 1
+  revealBoxRank: 0
+  revealInfoRank: 0
+  unlockRank: 0
+  graphPosition: {x: 120, y: 220}
+  references:
+    version: 2
+    RefIds:
+    - rid: 8457167862744744032
+      type: {class: StatMultiplierEffect, ns: JollyLlama.SkillTreeSystem, asm: Assembly-CSharp}
+      data:
+        statType: 4
+        multiplier: 2
