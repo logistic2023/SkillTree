@@ -52,10 +52,76 @@ namespace JollyLlama.SkillTreeSystem
 
         public void LoadOrCreate()
         {
-            _state = Load() ?? new SkillTreeRuntimeState();
+            var loaded    = Load();
+            bool isNewState = loaded == null;
+            _state = loaded ?? new SkillTreeRuntimeState { saveVersion = SkillTreeSaveMigration.CurrentVersion };
+
+            bool migrated   = SkillTreeSaveMigration.Migrate(_state);
+            bool reconciled = ReconcileState();
+            if (!isNewState && (migrated || reconciled))
+                Save(); // persist the fix so we don't re-warn about the same issue every load
+
             ReplayAllEffects();
             OnTreeLoaded?.Invoke();
             SkillTreeLogger.Log("SkillTreeManager", $"Tree loaded. Unlocked nodes: {_state.nodeRanks.Count}");
+        }
+
+        /// <summary>
+        /// Sanity-checks loaded save data against the current SkillTreeSO after any
+        /// version migration has run, catching the two ways design changes to the tree
+        /// itself (independent of save schema) can leave old saves inconsistent:
+        ///   - A node the player had ranks in no longer exists (removed/renamed nodeId).
+        ///   - A node's maxRanks was reduced below a rank the player already has.
+        /// Returns true if anything was changed (so the caller knows to re-save).
+        /// </summary>
+        private bool ReconcileState()
+        {
+            if (skillTree?.allNodes == null || _state == null) return false;
+
+            bool changed = false;
+            // Built via foreach over the dictionary itself (not .Keys) to match the
+            // enumeration style already used elsewhere (see GetUnlockedIds), since
+            // SerializableDictionary doesn't expose a Keys property.
+            var idsToFix = new List<string>();
+            foreach (var kvp in _state.nodeRanks) idsToFix.Add(kvp.Key);
+
+            foreach (var nodeId in idsToFix)
+            {
+                var node = skillTree.GetNode(nodeId);
+
+                if (node == null)
+                {
+                    // The node this save has ranks in no longer exists in the tree.
+                    // We have no reliable way to know what it used to cost (it may have
+                    // had different costs per rank, and per-node spend isn't tracked
+                    // separately from the aggregate totalSpent), so the safest option is
+                    // to drop the orphaned entry rather than silently keep dead data
+                    // around forever. This is logged loudly since it represents player
+                    // progress disappearing and is worth a designer's attention.
+                    int lostRank = _state.GetRank(nodeId);
+                    _state.nodeRanks.Remove(nodeId);
+                    changed = true;
+                    SkillTreeLogger.LogWarning("SkillTreeManager",
+                        $"Save referenced unknown node '{nodeId}' at rank {lostRank} " +
+                        "(likely removed or renamed since this save was written) — entry dropped.");
+                    continue;
+                }
+
+                int rank = _state.GetRank(nodeId);
+                if (rank > node.maxRanks)
+                {
+                    // maxRanks was reduced below what this save already has. Clamp down
+                    // rather than let ReplayAllEffects apply ranks the node no longer
+                    // defines as valid.
+                    _state.nodeRanks[nodeId] = node.maxRanks;
+                    changed = true;
+                    SkillTreeLogger.LogWarning("SkillTreeManager",
+                        $"'{node.displayName}' save rank ({rank}) exceeds its current maxRanks " +
+                        $"({node.maxRanks}) — clamped down.");
+                }
+            }
+
+            return changed;
         }
 
         // ── Unlock ────────────────────────────────────────────────────────────────
@@ -126,6 +192,9 @@ namespace JollyLlama.SkillTreeSystem
             if (!_state.IsUnlocked(nodeId))
                 return UnlockResult.Fail("Node is not unlocked.");
 
+            if (config != null && !config.AreRefundsAllowed())
+                return UnlockResult.Fail("Refunds are disabled.");
+
             var node = skillTree.GetNode(nodeId);
             if (node == null)
                 return UnlockResult.Fail($"Node '{nodeId}' not found.");
@@ -146,20 +215,39 @@ namespace JollyLlama.SkillTreeSystem
                 }
             }
 
-            var refundCosts = node.GetAllCosts(currentRank);
+            var originalCosts = node.GetAllCosts(currentRank);
+            var returnedCosts = config != null
+                ? config.ApplyRefundPolicy(originalCosts)
+                : originalCosts;
 
             node.RemoveRank(currentRank);
-            _state.RemoveRank(nodeId, refundCosts);
+            _state.RemoveRank(nodeId, originalCosts);
 
             if (Resources != null)
-                Resources.RefundAll(refundCosts);
+                Resources.RefundAll(returnedCosts);
 
             Save();
 
             OnNodeRefunded?.Invoke(node, currentRank);
             SkillTreeLogger.Log("SkillTreeManager", $"Refunded '{node.displayName}' rank {currentRank}");
 
-            return UnlockResult.Success(refundCosts);
+            return UnlockResult.Success(returnedCosts);
+        }
+
+        /// <summary>
+        /// Previews what a refund of the top rank of a node would return, without
+        /// actually performing it. Respects the current RefundPolicy (Free/Taxed).
+        /// Returns an empty list if the node isn't unlocked.
+        /// </summary>
+        public List<(ResourceDefinitionSO Resource, int Amount)> PreviewRefund(string nodeId)
+        {
+            var node = skillTree?.GetNode(nodeId);
+            if (node == null || !_state.IsUnlocked(nodeId))
+                return new List<(ResourceDefinitionSO, int)>();
+
+            int currentRank = _state.GetRank(nodeId);
+            var originalCosts = node.GetAllCosts(currentRank);
+            return config != null ? config.ApplyRefundPolicy(originalCosts) : originalCosts;
         }
 
         // ── Reset ─────────────────────────────────────────────────────────────────

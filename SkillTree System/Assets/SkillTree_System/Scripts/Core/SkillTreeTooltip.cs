@@ -16,6 +16,7 @@ namespace JollyLlama.SkillTreeSystem
         [SerializeField] private TextMeshProUGUI  descriptionText;
         [SerializeField] private TextMeshProUGUI  effectsText;
         [SerializeField] private TextMeshProUGUI  costText;
+        [SerializeField] private TextMeshProUGUI  lockReasonText;
 
         [Header("Branch Colors")]
         [SerializeField] private Color offenseColor = new Color(0.85f, 0.25f, 0.20f);
@@ -40,7 +41,7 @@ namespace JollyLlama.SkillTreeSystem
         // ── Public API ────────────────────────────────────────────────────────────
 
         public void Show(SkillNodeSO node, int currentRank, Vector3 anchorWorldPos,
-            NodeVisibilityState visibility = NodeVisibilityState.Unlockable)
+            NodeVisibilityState visibility = NodeVisibilityState.Unlockable, string lockReason = null)
         {
             if (node == null) return;
             if (visibility == NodeVisibilityState.Hidden) return;
@@ -86,10 +87,29 @@ namespace JollyLlama.SkillTreeSystem
                 else
                 {
                     var sb = new System.Text.StringBuilder();
-                    if (node.effects != null)
-                        foreach (var effect in node.effects)
-                            if (effect != null)
-                                sb.AppendLine($"• {effect.GetDescription()}");
+                    if (node.effects != null && node.effects.Count > 0)
+                    {
+                        // Each rank grants the same effect list again (stacking), so this
+                        // doubles as both "what you have" (if rank > 0) and "what the
+                        // next rank adds" (if rank < maxRanks) — labelled accordingly.
+                        bool hasRank = currentRank > 0;
+                        bool hasNext = currentRank < node.maxRanks;
+
+                        if (hasRank)
+                        {
+                            sb.AppendLine("Current:");
+                            foreach (var effect in node.effects)
+                                if (effect != null) sb.AppendLine($"  • {effect.GetDescription()}");
+                        }
+
+                        if (hasNext)
+                        {
+                            if (hasRank) sb.AppendLine();
+                            sb.AppendLine("Next rank adds:");
+                            foreach (var effect in node.effects)
+                                if (effect != null) sb.AppendLine($"  • {effect.GetDescription()}");
+                        }
+                    }
                     effectsText.text = sb.ToString().TrimEnd();
                     effectsText.gameObject.SetActive(node.effects != null && node.effects.Count > 0);
                 }
@@ -111,6 +131,17 @@ namespace JollyLlama.SkillTreeSystem
                     int nextRank  = currentRank + 1;
                     costText.text = $"Cost: {node.GetCostString(nextRank)}";
                 }
+            }
+
+            // Lock reason — only meaningful for a node the player can see but can't yet buy.
+            if (lockReasonText != null)
+            {
+                bool showLockReason = !isMystery
+                    && visibility != NodeVisibilityState.Hidden
+                    && !string.IsNullOrEmpty(lockReason);
+
+                lockReasonText.gameObject.SetActive(showLockReason);
+                lockReasonText.text = showLockReason ? $"🔒 {lockReason}" : string.Empty;
             }
 
             gameObject.SetActive(true);

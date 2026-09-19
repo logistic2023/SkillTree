@@ -15,6 +15,6 @@ MonoBehaviour:
   treeName: MainSkillTree
   treeDescription: 
   allNodes:
-  - {fileID: 11400000, guid: 674baa0d83273bc4fa3e4ec85af7b43e, type: 2}
-  - {fileID: 11400000, guid: f27c148703eebcf44a7ccb7ec2522cea, type: 2}
-  - {fileID: 11400000, guid: 074a82ff479ee6048b688751c1265b5f, type: 2}
+  - {fileID: 11400000, guid: b3e109e5359f9f34e90856e4c8e236ef, type: 2}
+  - {fileID: 11400000, guid: eb914a87d80dfd74daa5648bb61fa4cd, type: 2}
+  - {fileID: 11400000, guid: 99f30622152efaa4db8076b40dabae22, type: 2}

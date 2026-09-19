@@ -4,7 +4,6 @@ using UnityEngine;
 namespace JollyLlama.SkillTreeSystem
 {
 
-
     /// <summary>
     /// Centralised logger for the entire skill tree system.
     /// Set <see cref="Level"/> once (via SkillTreeManager.Awake) and every
@@ -36,3 +35,4 @@ namespace JollyLlama.SkillTreeSystem
         }
     }
 }
+ 

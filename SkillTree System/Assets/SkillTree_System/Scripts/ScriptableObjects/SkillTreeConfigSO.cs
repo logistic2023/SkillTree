@@ -1,7 +1,20 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace JollyLlama.SkillTreeSystem
 {
+    /// <summary>
+    /// Defines the display color and custom label for one SkillBranch value.
+    /// </summary>
+    [System.Serializable]
+    public class BranchColorEntry
+    {
+        public SkillBranch branch    = SkillBranch.Offense;
+        public Color       color     = new Color(0.75f, 0.18f, 0.12f);
+        [Tooltip("Optional display name override shown in the editor instead of the enum name.")]
+        public string      label     = "";
+    }
+
     /// <summary>
     /// Global policy asset for the skill tree.
     /// Create one via Assets > Skill Tree > Skill Tree Config and assign it to SkillTreeManager.
@@ -10,6 +23,45 @@ namespace JollyLlama.SkillTreeSystem
     [CreateAssetMenu(fileName = "SkillTreeConfig", menuName = "Skill Tree/Skill Tree Config")]
     public class SkillTreeConfigSO : ScriptableObject
     {
+        // ── Branch colors ─────────────────────────────────────────────────────────
+
+        [Header("Branch Colors")]
+        [Tooltip("Override the editor display colors for each branch. " +
+                 "Leave empty to use the built-in defaults.")]
+        public List<BranchColorEntry> branchColors = new List<BranchColorEntry>
+        {
+            new BranchColorEntry { branch = SkillBranch.Offense, color = new Color(0.75f, 0.18f, 0.12f), label = "" },
+            new BranchColorEntry { branch = SkillBranch.Control, color = new Color(0.12f, 0.38f, 0.78f), label = "" },
+            new BranchColorEntry { branch = SkillBranch.Economy, color = new Color(0.72f, 0.60f, 0.08f), label = "" },
+            new BranchColorEntry { branch = SkillBranch.Defense, color = new Color(0.42f, 0.42f, 0.46f), label = "" },
+        };
+
+        /// <summary>Returns the configured color for a branch, falling back to the built-in default.</summary>
+        public Color GetBranchColor(SkillBranch branch)
+        {
+            if (branchColors != null)
+                foreach (var e in branchColors)
+                    if (e.branch == branch) return e.color;
+            return branch switch
+            {
+                SkillBranch.Offense => new Color(0.75f, 0.18f, 0.12f),
+                SkillBranch.Control => new Color(0.12f, 0.38f, 0.78f),
+                SkillBranch.Economy => new Color(0.72f, 0.60f, 0.08f),
+                SkillBranch.Defense => new Color(0.42f, 0.42f, 0.46f),
+                _                   => new Color(0.3f,  0.3f,  0.3f),
+            };
+        }
+
+        /// <summary>Returns the display label for a branch (custom or enum name).</summary>
+        public string GetBranchLabel(SkillBranch branch)
+        {
+            if (branchColors != null)
+                foreach (var e in branchColors)
+                    if (e.branch == branch && !string.IsNullOrEmpty(e.label))
+                        return e.label;
+            return branch.ToString();
+        }
+
         // ── Visibility policy ─────────────────────────────────────────────────────
 
         [Header("Visibility Mode")]
@@ -44,10 +96,44 @@ namespace JollyLlama.SkillTreeSystem
         [Tooltip("Whether refunds are allowed at all, and whether they cost anything.\n\n" +
                  "Free      — Full refund, no cost.\n" +
                  "Disabled  — Refunds are never allowed.\n" +
-                 "(Future: Taxed — Refund returns a percentage of the original cost.)")]
+                 "Taxed     — Refund returns a percentage of the original cost; the rest is lost.")]
         public RefundPolicy refundPolicy = RefundPolicy.Free;
 
+        [Tooltip("Only used when refundPolicy is Taxed. Percentage of the original cost " +
+                 "returned to the player on refund. 100 = full refund, 0 = nothing returned.")]
+        [Range(0, 100)] public int refundTaxReturnPercent = 50;
+
         // ── Helpers ───────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Returns true if refunds are allowed at all under the current policy.
+        /// </summary>
+        public bool AreRefundsAllowed() => refundPolicy != RefundPolicy.Disabled;
+
+        /// <summary>
+        /// Applies the refund policy to a list of original costs, returning the amounts
+        /// actually paid back to the player. Free → unchanged. Taxed → scaled by
+        /// refundTaxReturnPercent (rounded down, minimum 0 per resource).
+        /// </summary>
+        public List<(ResourceDefinitionSO Resource, int Amount)> ApplyRefundPolicy(
+            IReadOnlyList<(ResourceDefinitionSO Resource, int Amount)> originalCosts)
+        {
+            var result = new List<(ResourceDefinitionSO, int)>(originalCosts.Count);
+
+            if (refundPolicy == RefundPolicy.Taxed)
+            {
+                foreach (var (res, amt) in originalCosts)
+                    result.Add((res, Mathf.FloorToInt(amt * (refundTaxReturnPercent / 100f))));
+            }
+            else
+            {
+                // Free (or any future default) — return the full amount.
+                foreach (var (res, amt) in originalCosts)
+                    result.Add((res, amt));
+            }
+
+            return result;
+        }
 
         /// <summary>
         /// Returns the effective revealBoxRank for a node, respecting its override flag.
@@ -92,5 +178,8 @@ namespace JollyLlama.SkillTreeSystem
 
         /// <summary>Refunds are disabled entirely.</summary>
         Disabled,
+
+        /// <summary>Refund returns only refundTaxReturnPercent of the original cost.</summary>
+        Taxed,
     }
 }

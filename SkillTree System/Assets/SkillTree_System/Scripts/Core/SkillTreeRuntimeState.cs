@@ -9,6 +9,14 @@ namespace JollyLlama.SkillTreeSystem
     {
         // ── Persisted ─────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Schema version this save was last migrated to. 0 = written before versioning
+        /// existed (JsonUtility leaves missing int fields at their default, so any save
+        /// from before this field was added naturally comes back as 0).
+        /// Do not edit by hand — set by SkillTreeSaveMigration.Migrate().
+        /// </summary>
+        public int saveVersion;
+
         public SerializableDictionary<string, int> nodeRanks = new();
 
         /// <summary>

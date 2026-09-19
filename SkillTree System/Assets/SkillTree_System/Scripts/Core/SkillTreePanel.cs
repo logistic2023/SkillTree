@@ -164,12 +164,27 @@ namespace JollyLlama.SkillTreeSystem
             if (_buttonMap.TryGetValue(node.nodeId, out var btn))
                 tooltip?.Show(node, skillTreeManager.GetRank(node.nodeId),
                     btn.GetComponent<RectTransform>().position,
-                    skillTreeManager.GetNodeVisibilityState(node));
+                    skillTreeManager.GetNodeVisibilityState(node),
+                    GetTooltipLockReason(node));
         }
 
         public void OnNodeHovered(SkillNodeSO node, Vector3 screenPos)
             => tooltip?.Show(node, skillTreeManager.GetRank(node.nodeId), screenPos,
-                skillTreeManager.GetNodeVisibilityState(node));
+                skillTreeManager.GetNodeVisibilityState(node),
+                GetTooltipLockReason(node));
+
+        /// <summary>
+        /// Returns a lock reason worth showing in the tooltip, or null if the node
+        /// is already unlockable/unlocked (nothing to explain) or at max rank.
+        /// </summary>
+        private string GetTooltipLockReason(SkillNodeSO node)
+        {
+            var visibility = skillTreeManager.GetNodeVisibilityState(node);
+            if (visibility != NodeVisibilityState.Visible) return null; // Unlockable/Unlocked/Mystery/Hidden
+            if (skillTreeManager.IsMaxRank(node.nodeId)) return null;
+            string reason = skillTreeManager.GetLockReason(node.nodeId);
+            return string.IsNullOrEmpty(reason) ? null : reason;
+        }
 
         public void OnNodeHoverEnd() => tooltip?.Hide();
 
@@ -181,10 +196,26 @@ namespace JollyLlama.SkillTreeSystem
             if (!string.IsNullOrEmpty(blockReason)) { SetFeedback(blockReason); return; }
 
             int currentRank = skillTreeManager.GetRank(node.nodeId);
-            string costLine = node.GetCostString(currentRank);
-            SetFeedback($"Refund '{node.displayName}' rank {currentRank}?\nYou will receive {costLine} back.");
+
+            var returned = skillTreeManager.PreviewRefund(node.nodeId);
+            string returnLine = FormatCosts(returned);
+
+            SetFeedback($"Refund '{node.displayName}' rank {currentRank}?\nYou will receive {returnLine} back.");
             _pendingRefundNode = node;
             if (refundConfirmButton != null) refundConfirmButton.gameObject.SetActive(true);
+        }
+
+        private static string FormatCosts(IReadOnlyList<(ResourceDefinitionSO Resource, int Amount)> costs)
+        {
+            if (costs == null || costs.Count == 0) return "nothing";
+            var sb = new System.Text.StringBuilder();
+            foreach (var (res, amt) in costs)
+            {
+                if (res == null) continue;
+                if (sb.Length > 0) sb.Append("  ");
+                sb.Append(res.Format(amt));
+            }
+            return sb.Length > 0 ? sb.ToString() : "nothing";
         }
 
         // ── Tab slide ─────────────────────────────────────────────────────────────
@@ -486,6 +517,10 @@ namespace JollyLlama.SkillTreeSystem
 
         private string GetRefundBlockReason(SkillNodeSO node)
         {
+            var config = skillTreeManager.config;
+            if (config != null && !config.AreRefundsAllowed())
+                return "Refunds are disabled.";
+
             int currentRank = skillTreeManager.GetRank(node.nodeId);
             int rankAfter   = currentRank - 1;
 

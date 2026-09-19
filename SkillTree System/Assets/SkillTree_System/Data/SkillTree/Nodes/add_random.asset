@@ -10,24 +10,27 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 238f4c6802c54d068c9f8378dd227cae, type: 3}
-  m_Name: test_3
+  m_Name: add_random
   m_EditorClassIdentifier: 
-  nodeId: test_3
-  displayName: test 3
+  nodeId: add_random
+  displayName: add random
   icon: {fileID: 0}
   description: 
   branch: 0
   maxRanks: 1
-  costsPerRank: []
+  costsPerRank:
+  - resource: {fileID: 11400000, guid: 18f537ef16f8f27488631113ec682176, type: 2}
+    amountPerRank: 100
   prerequisites:
-  - node: {fileID: 11400000, guid: f27c148703eebcf44a7ccb7ec2522cea, type: 2}
+  - node: {fileID: 11400000, guid: b3e109e5359f9f34e90856e4c8e236ef, type: 2}
     requiredRank: 1
   effects: []
   useGlobalVisibilityRules: 1
   revealBoxRank: 0
-  revealInfoRank: 1
-  unlockRank: 0
-  graphPosition: {x: 700, y: 440}
+  revealInfoRank: 0
+  unlockRank: 1
+  graphPosition: {x: 60, y: 320}
+  editorComment: 
   references:
     version: 2
     RefIds: []

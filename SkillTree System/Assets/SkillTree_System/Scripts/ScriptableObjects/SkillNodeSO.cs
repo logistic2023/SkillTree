@@ -62,6 +62,11 @@ namespace JollyLlama.SkillTreeSystem
         [Header("Graph Layout")]
         public Vector2 graphPosition;
 
+        [Header("Editor Note")]
+        [TextArea(2, 5)]
+        [Tooltip("Designer note — visible as a speech bubble on the canvas. " +
+                 "Has no effect at runtime.")]
+        public string editorComment = "";
         // ── Validation ───────────────────────────────────────────────────────────
 
         private void OnValidate()
@@ -162,3 +167,4 @@ namespace JollyLlama.SkillTreeSystem
         [Min(1)] public int requiredRank = 1;
     }
 }
+

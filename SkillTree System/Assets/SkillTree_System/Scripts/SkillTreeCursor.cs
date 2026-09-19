@@ -9,3 +9,8 @@ public class SkillTreeCursor : MonoBehaviour
       rectTransform.position = Input.mousePosition;
    }
 }
+
+
+namespace JollyLlama.SkillTreeSystem
+{
+}

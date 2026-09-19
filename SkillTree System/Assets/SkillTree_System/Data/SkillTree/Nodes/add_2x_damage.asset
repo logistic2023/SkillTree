@@ -10,24 +10,23 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 238f4c6802c54d068c9f8378dd227cae, type: 3}
-  m_Name: test_3
+  m_Name: add_2x_damage
   m_EditorClassIdentifier: 
-  nodeId: test_3
-  displayName: test 3
-  icon: {fileID: 0}
+  nodeId: add_2x_damage
+  displayName: Add 2x Damage
+  icon: {fileID: 21300000, guid: 081bf1400a3c62d4797e57c26b9f2afb, type: 3}
   description: 
   branch: 0
-  maxRanks: 1
+  maxRanks: 2
   costsPerRank: []
-  prerequisites:
-  - node: {fileID: 11400000, guid: f27c148703eebcf44a7ccb7ec2522cea, type: 2}
-    requiredRank: 1
+  prerequisites: []
   effects: []
   useGlobalVisibilityRules: 1
   revealBoxRank: 0
-  revealInfoRank: 1
-  unlockRank: 0
-  graphPosition: {x: 700, y: 440}
+  revealInfoRank: 0
+  unlockRank: 1
+  graphPosition: {x: 60, y: 100}
+  editorComment: 
   references:
     version: 2
     RefIds: []

@@ -4,18 +4,41 @@ using UnityEngine;
 
 namespace JollyLlama.SkillTreeSystem
 {
-    public class StatSystem : MonoBehaviour
+    /// <summary>
+    /// A ready-made implementation of IStatRegistry — the seam the skill tree package
+    /// uses to register/unregister/read stat bonuses without knowing what stats a
+    /// client project actually has. Internally this is exactly "a dictionary of
+    /// generics" keyed by an open string id: any stat id can be registered on demand,
+    /// nothing here needs editing to add a new one.
+    ///
+    /// This class is provided for convenience — assign it to
+    /// SkillTreeStatRegistry.Current (done automatically below, in Awake) and use it
+    /// as your project's stat system, or ignore it entirely and provide your own
+    /// IStatRegistry implementation instead. The skill tree package only ever talks
+    /// to IStatRegistry, never to this class directly.
+    ///
+    /// The StatType-based overloads below exist purely for backward compatibility
+    /// with existing gameplay code (DamageStatModifier, SpellStatIntegration,
+    /// TotemStatIntegration) that was written against the old closed enum — they're
+    /// thin wrappers that key off `stat.ToString()`. New code, and anything inside
+    /// the skill tree package itself, should use the string-id API directly.
+    /// </summary>
+    public class StatSystem : MonoBehaviour, IStatRegistry
     {
         public static StatSystem Instance { get; private set; }
 
-        private readonly Dictionary<StatType, List<float>> _flatBonuses = new();
-        private readonly Dictionary<StatType, List<float>> _multipliers = new();
+        private readonly Dictionary<string, List<float>> _flatBonuses = new();
+        private readonly Dictionary<string, List<float>> _multipliers = new();
 
-        public event Action<StatType> OnStatChanged;
+        /// <summary>String-keyed — this is the IStatRegistry event. Existing code
+        /// written against the old `Action&lt;StatType&gt;` signature needs a one-line
+        /// signature update (parameter type only); see TotemStatIntegration for an
+        /// example of comparing the incoming id against a StatType member.</summary>
+        public event Action<string> OnStatChanged;
 
         // Batch state
         private bool _batching;
-        private readonly HashSet<StatType> _changedDuringBatch = new();
+        private readonly HashSet<string> _changedDuringBatch = new();
 
         private void Awake()
         {
@@ -27,6 +50,11 @@ namespace JollyLlama.SkillTreeSystem
 
             Instance = this;
             DontDestroyOnLoad(gameObject);
+
+            // Self-register as the skill tree package's stat registry. Remove this
+            // line (and assign SkillTreeStatRegistry.Current yourself) if you're
+            // using your own IStatRegistry implementation instead of this class.
+            SkillTreeStatRegistry.Current = this;
         }
 
         public void BeginBatch()
@@ -43,111 +71,116 @@ namespace JollyLlama.SkillTreeSystem
             _changedDuringBatch.Clear();
         }
 
+        // ── IStatRegistry — string-keyed, open registration ────────────────────────
 
-        public float GetValue(StatType stat, float baseValue)
-            => (baseValue + GetTotalFlat(stat)) * GetTotalMultiplier(stat);
+        public float GetValue(string statId, float baseValue)
+            => (baseValue + GetTotalFlat(statId)) * GetTotalMultiplier(statId);
 
-        public int GetValueInt(StatType stat, int baseValue)
-            => Mathf.RoundToInt(GetValue(stat, (float)baseValue));
+        public int GetValueInt(string statId, int baseValue)
+            => Mathf.RoundToInt(GetValue(statId, (float)baseValue));
 
-        public float GetTotalFlat(StatType stat)
+        public float GetTotalFlat(string statId)
         {
-            if (!_flatBonuses.TryGetValue(stat, out var list) || list.Count == 0) return 0f;
+            if (!_flatBonuses.TryGetValue(statId, out var list) || list.Count == 0) return 0f;
             float sum = 0f;
             foreach (float v in list) sum += v;
             return sum;
         }
 
-        public float GetTotalMultiplier(StatType stat)
+        public float GetTotalMultiplier(string statId)
         {
-            if (!_multipliers.TryGetValue(stat, out var list) || list.Count == 0) return 1f;
+            if (!_multipliers.TryGetValue(statId, out var list) || list.Count == 0) return 1f;
             float p = 1f;
             foreach (float v in list) p *= v;
             return p;
         }
 
-        public void RegisterMultiplier(StatType stat, float multiplier)
+        public void RegisterMultiplier(string statId, float multiplier)
         {
-            if (!_multipliers.ContainsKey(stat)) _multipliers[stat] = new List<float>();
-            _multipliers[stat].Add(multiplier);
-            NotifyChanged(stat);
-            SkillTreeLogger.Log("StatSystem", $"+mult {stat} ×{multiplier:F3}  →  ×{GetTotalMultiplier(stat):F3}");
+            if (!_multipliers.ContainsKey(statId)) _multipliers[statId] = new List<float>();
+            _multipliers[statId].Add(multiplier);
+            NotifyChanged(statId);
+            SkillTreeLogger.Log("StatSystem", $"+mult {statId} ×{multiplier:F3}  →  ×{GetTotalMultiplier(statId):F3}");
         }
 
-        public void UnregisterMultiplier(StatType stat, float multiplier)
+        public void UnregisterMultiplier(string statId, float multiplier)
         {
-            if (!_multipliers.TryGetValue(stat, out var list)) return;
+            if (!_multipliers.TryGetValue(statId, out var list)) return;
             list.Remove(multiplier);
-            NotifyChanged(stat);
+            NotifyChanged(statId);
         }
 
-        public void RegisterFlatBonus(StatType stat, float bonus)
+        public void RegisterFlatBonus(string statId, float bonus)
         {
-            if (!_flatBonuses.ContainsKey(stat)) _flatBonuses[stat] = new List<float>();
-            _flatBonuses[stat].Add(bonus);
-            NotifyChanged(stat);
-            SkillTreeLogger.Log("StatSystem", $"+flat {stat} +{bonus}  →  +{GetTotalFlat(stat)}");
+            if (!_flatBonuses.ContainsKey(statId)) _flatBonuses[statId] = new List<float>();
+            _flatBonuses[statId].Add(bonus);
+            NotifyChanged(statId);
+            SkillTreeLogger.Log("StatSystem", $"+flat {statId} +{bonus}  →  +{GetTotalFlat(statId)}");
         }
 
-        public void UnregisterFlatBonus(StatType stat, float bonus)
+        public void UnregisterFlatBonus(string statId, float bonus)
         {
-            if (!_flatBonuses.TryGetValue(stat, out var list)) return;
+            if (!_flatBonuses.TryGetValue(statId, out var list)) return;
             list.Remove(bonus);
-            NotifyChanged(stat);
+            NotifyChanged(statId);
         }
 
         public void ClearAll()
         {
-            var changed = new HashSet<StatType>();
-            foreach (var kv in _flatBonuses)
-            {
-                changed.Add(kv.Key);
-                kv.Value.Clear();
-            }
-
-            foreach (var kv in _multipliers)
-            {
-                changed.Add(kv.Key);
-                kv.Value.Clear();
-            }
+            var changed = new HashSet<string>();
+            foreach (var kv in _flatBonuses) { changed.Add(kv.Key); kv.Value.Clear(); }
+            foreach (var kv in _multipliers) { changed.Add(kv.Key); kv.Value.Clear(); }
 
             if (_batching)
-            {
                 foreach (var s in changed) _changedDuringBatch.Add(s);
-            }
             else
-            {
                 foreach (var s in changed) OnStatChanged?.Invoke(s);
-            }
 
             SkillTreeLogger.Log("StatSystem", "All modifiers cleared.");
         }
 
-
-        private void NotifyChanged(StatType stat)
+        private void NotifyChanged(string statId)
         {
             if (_batching)
-                _changedDuringBatch.Add(stat);
+                _changedDuringBatch.Add(statId);
             else
-                OnStatChanged?.Invoke(stat);
+                OnStatChanged?.Invoke(statId);
         }
 
-        public void LogStat(StatType stat, float baseValue)
+        public void LogStat(string statId, float baseValue)
         {
-            float flat = GetTotalFlat(stat);
-            float mult = GetTotalMultiplier(stat);
-            float final = GetValue(stat, baseValue);
-            SkillTreeLogger.Log("StatSystem", $"<color=cyan>{stat}</color> | base={baseValue} + flat={flat} → {baseValue + flat} | ×{mult:F3} | <color=yellow>final={final:F3}</color>");
+            float flat = GetTotalFlat(statId);
+            float mult = GetTotalMultiplier(statId);
+            float final = GetValue(statId, baseValue);
+            SkillTreeLogger.Log("StatSystem", $"<color=cyan>{statId}</color> | base={baseValue} + flat={flat} → {baseValue + flat} | ×{mult:F3} | <color=yellow>final={final:F3}</color>");
         }
 
+        /// <summary>Logs every stat id currently registered (flat and/or multiplier),
+        /// regardless of whether it came from the old enum or an open string id.</summary>
         public void LogAll(float defaultBase = 1f)
         {
-            foreach (StatType stat in Enum.GetValues(typeof(StatType)))
+            var ids = new HashSet<string>(_flatBonuses.Keys);
+            ids.UnionWith(_multipliers.Keys);
+            foreach (var id in ids)
             {
-                bool hasFlat = _flatBonuses.ContainsKey(stat) && _flatBonuses[stat].Count > 0;
-                bool hasMult = _multipliers.ContainsKey(stat) && _multipliers[stat].Count > 0;
-                if (hasFlat || hasMult) LogStat(stat, defaultBase);
+                bool hasFlat = _flatBonuses.TryGetValue(id, out var fl) && fl.Count > 0;
+                bool hasMult = _multipliers.TryGetValue(id, out var ml) && ml.Count > 0;
+                if (hasFlat || hasMult) LogStat(id, defaultBase);
             }
         }
+
+        // ── Legacy StatType overloads — for existing gameplay code only ───────────
+        // These exist so DamageStatModifier / SpellStatIntegration / TotemStatIntegration
+        // keep compiling unchanged. New code should use the string-id API above.
+
+        public void  RegisterMultiplier(StatType stat, float multiplier)      => RegisterMultiplier(stat.ToString(), multiplier);
+        public void  UnregisterMultiplier(StatType stat, float multiplier)    => UnregisterMultiplier(stat.ToString(), multiplier);
+        public void  RegisterFlatBonus(StatType stat, float bonus)            => RegisterFlatBonus(stat.ToString(), bonus);
+        public void  UnregisterFlatBonus(StatType stat, float bonus)          => UnregisterFlatBonus(stat.ToString(), bonus);
+        public float GetTotalFlat(StatType stat)                              => GetTotalFlat(stat.ToString());
+        public float GetTotalMultiplier(StatType stat)                        => GetTotalMultiplier(stat.ToString());
+        public float GetValue(StatType stat, float baseValue)                 => GetValue(stat.ToString(), baseValue);
+        public int   GetValueInt(StatType stat, int baseValue)                => GetValueInt(stat.ToString(), baseValue);
+        public void  LogStat(StatType stat, float baseValue)                  => LogStat(stat.ToString(), baseValue);
     }
 }

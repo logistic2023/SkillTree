@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -5,6 +6,20 @@ using UnityEngine;
 
 namespace JollyLlama.SkillTreeSystem
 {
+    /// <summary>
+    /// A freeform labelled rectangle drawn behind nodes on the editor canvas — purely a
+    /// visual/organisational aid (e.g. grouping "Early Game" or "Ultimate" nodes). Has no
+    /// effect at runtime.
+    /// </summary>
+    [Serializable]
+    public class NodeRegion
+    {
+        public string label = "Region";
+        public Vector2 position;
+        public Vector2 size = new Vector2(300f, 200f);
+        public Color color = new Color(0.3f, 0.3f, 0.3f, 0.18f);
+    }
+
     [CreateAssetMenu(fileName = "New Skill Tree", menuName = "Skill Tree/Skill Tree")]
     public class SkillTreeSO : ScriptableObject
     {
@@ -13,6 +28,11 @@ namespace JollyLlama.SkillTreeSystem
         [TextArea(1, 2)] public string treeDescription;
 
         [Header("Nodes")] public List<SkillNodeSO> allNodes = new();
+
+        [Header("Regions")]
+        [Tooltip("Freeform labelled rectangles drawn behind nodes in the editor canvas, " +
+                 "purely for visual organisation. No effect at runtime.")]
+        public List<NodeRegion> regions = new();
 
         // ── Node lookup ───────────────────────────────────────────────────────────
 
