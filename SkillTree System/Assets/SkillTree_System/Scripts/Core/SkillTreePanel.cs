@@ -485,8 +485,14 @@ namespace JollyLlama.SkillTreeSystem
 
             if (result.IsSuccess)
             {
+                string unlockedNodeId = _selectedNode.nodeId;
                 SetFeedback(string.Empty);
                 RefreshAll();
+
+                // Fire the unlock VFX after RefreshAll so it plays over the node's
+                // already-updated (unlocked/ranked-up) visual state, not the old one.
+                if (_buttonMap.TryGetValue(unlockedNodeId, out var btn))
+                    btn.PlayUnlockBurst();
             }
             else
             {

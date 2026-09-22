@@ -119,10 +119,10 @@ namespace JollyLlama.SkillTreeSystem
             }
 
             // Apply stat-based drop multiplier if configured on the SO
-            if (resource.useDropMultiplier && resource.dropMultiplierStat.HasValue
-                && StatSystem.Instance != null)
+            if (resource.useDropMultiplier && !string.IsNullOrEmpty(resource.dropMultiplierStat)
+                && SkillTreeStatRegistry.Current != null)
             {
-                float mult = StatSystem.Instance.GetTotalMultiplier(resource.dropMultiplierStat.Value);
+                float mult = SkillTreeStatRegistry.Current.GetTotalMultiplier(resource.dropMultiplierStat);
                 amount = Mathf.Max(1, Mathf.RoundToInt(amount * mult));
             }
 

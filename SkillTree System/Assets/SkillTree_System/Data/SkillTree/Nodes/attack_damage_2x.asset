@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 238f4c6802c54d068c9f8378dd227cae, type: 3}
+  m_Name: attack_damage_2x
+  m_EditorClassIdentifier: 
+  nodeId: damage_2x
+  displayName: attack damage 2x
+  icon: {fileID: 0}
+  description: 
+  branch: 0
+  maxRanks: 1
+  costsPerRank: []
+  prerequisites: []
+  effects: []
+  useGlobalVisibilityRules: 1
+  revealBoxRank: 0
+  revealInfoRank: 0
+  unlockRank: 1
+  graphPosition: {x: 600, y: -120}
+  editorComment: 
+  references:
+    version: 2
+    RefIds: []

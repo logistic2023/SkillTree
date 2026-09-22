@@ -50,8 +50,27 @@ namespace JollyLlama.SkillTreeSystem
             LoadOrCreate();
         }
 
+        /// <summary>
+        /// Data-integrity problems found in the assigned SkillTreeSO the last time
+        /// LoadOrCreate() ran (duplicate node ids, null/empty entries) — see
+        /// SkillTreeSO.ValidateIntegrity(). Empty when the tree is clean.
+        ///
+        /// This is the runtime safety net for bad tree data: editor-time validation
+        /// (OnValidate, the editor window's cycle/orphan/duplicate badges) never runs
+        /// in an actual build, so without this a duplicate node id could ship
+        /// unnoticed and silently make part of the tree unreachable. Checking this
+        /// after LoadOrCreate() lets the game react deliberately — block the skill
+        /// tree UI, surface it in a QA/smoke-test harness, report it to analytics —
+        /// instead of relying on someone spotting a log line.
+        /// </summary>
+        public IReadOnlyList<string> IntegrityIssues { get; private set; } = Array.Empty<string>();
+
         public void LoadOrCreate()
         {
+            IntegrityIssues = skillTree != null ? skillTree.ValidateIntegrity() : Array.Empty<string>();
+            foreach (var issue in IntegrityIssues)
+                SkillTreeLogger.LogError("SkillTreeManager", $"Tree data integrity: {issue}");
+
             var loaded    = Load();
             bool isNewState = loaded == null;
             _state = loaded ?? new SkillTreeRuntimeState { saveVersion = SkillTreeSaveMigration.CurrentVersion };
@@ -255,7 +274,7 @@ namespace JollyLlama.SkillTreeSystem
         [ContextMenu("Reset")]
         public void ResetTree()
         {
-            var stats = StatSystem.Instance;
+            var stats = SkillTreeStatRegistry.Current;
             stats?.BeginBatch();
             stats?.ClearAll();
             _state.Clear();
@@ -373,7 +392,7 @@ namespace JollyLlama.SkillTreeSystem
 
         public SkillTreeSO           GetTree()  => skillTree;
         public SkillTreeRuntimeState GetState() => _state;
-        public StatSystem            Stats      => StatSystem.Instance;
+        public IStatRegistry         Stats      => SkillTreeStatRegistry.Current;
 
         // ── Save / Load ───────────────────────────────────────────────────────────
 

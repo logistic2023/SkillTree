@@ -16,12 +16,6 @@ namespace JollyLlama.SkillTreeSystem
     /// as your project's stat system, or ignore it entirely and provide your own
     /// IStatRegistry implementation instead. The skill tree package only ever talks
     /// to IStatRegistry, never to this class directly.
-    ///
-    /// The StatType-based overloads below exist purely for backward compatibility
-    /// with existing gameplay code (DamageStatModifier, SpellStatIntegration,
-    /// TotemStatIntegration) that was written against the old closed enum — they're
-    /// thin wrappers that key off `stat.ToString()`. New code, and anything inside
-    /// the skill tree package itself, should use the string-id API directly.
     /// </summary>
     public class StatSystem : MonoBehaviour, IStatRegistry
     {
@@ -30,10 +24,6 @@ namespace JollyLlama.SkillTreeSystem
         private readonly Dictionary<string, List<float>> _flatBonuses = new();
         private readonly Dictionary<string, List<float>> _multipliers = new();
 
-        /// <summary>String-keyed — this is the IStatRegistry event. Existing code
-        /// written against the old `Action&lt;StatType&gt;` signature needs a one-line
-        /// signature update (parameter type only); see TotemStatIntegration for an
-        /// example of comparing the incoming id against a StatType member.</summary>
         public event Action<string> OnStatChanged;
 
         // Batch state
@@ -155,8 +145,7 @@ namespace JollyLlama.SkillTreeSystem
             SkillTreeLogger.Log("StatSystem", $"<color=cyan>{statId}</color> | base={baseValue} + flat={flat} → {baseValue + flat} | ×{mult:F3} | <color=yellow>final={final:F3}</color>");
         }
 
-        /// <summary>Logs every stat id currently registered (flat and/or multiplier),
-        /// regardless of whether it came from the old enum or an open string id.</summary>
+        /// <summary>Logs every stat id currently registered (flat and/or multiplier).</summary>
         public void LogAll(float defaultBase = 1f)
         {
             var ids = new HashSet<string>(_flatBonuses.Keys);
@@ -168,19 +157,5 @@ namespace JollyLlama.SkillTreeSystem
                 if (hasFlat || hasMult) LogStat(id, defaultBase);
             }
         }
-
-        // ── Legacy StatType overloads — for existing gameplay code only ───────────
-        // These exist so DamageStatModifier / SpellStatIntegration / TotemStatIntegration
-        // keep compiling unchanged. New code should use the string-id API above.
-
-        public void  RegisterMultiplier(StatType stat, float multiplier)      => RegisterMultiplier(stat.ToString(), multiplier);
-        public void  UnregisterMultiplier(StatType stat, float multiplier)    => UnregisterMultiplier(stat.ToString(), multiplier);
-        public void  RegisterFlatBonus(StatType stat, float bonus)            => RegisterFlatBonus(stat.ToString(), bonus);
-        public void  UnregisterFlatBonus(StatType stat, float bonus)          => UnregisterFlatBonus(stat.ToString(), bonus);
-        public float GetTotalFlat(StatType stat)                              => GetTotalFlat(stat.ToString());
-        public float GetTotalMultiplier(StatType stat)                        => GetTotalMultiplier(stat.ToString());
-        public float GetValue(StatType stat, float baseValue)                 => GetValue(stat.ToString(), baseValue);
-        public int   GetValueInt(StatType stat, int baseValue)                => GetValueInt(stat.ToString(), baseValue);
-        public void  LogStat(StatType stat, float baseValue)                  => LogStat(stat.ToString(), baseValue);
     }
 }

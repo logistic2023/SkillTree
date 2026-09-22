@@ -18,6 +18,7 @@ namespace JollyLlama.SkillTreeSystem
         [SerializeField] private GameObject         lockedOverlay;
         [SerializeField] private GameObject         maxRankBadge;
         [SerializeField] private GameObject         mysteryOverlay;
+        [SerializeField] private SkillNodeUnlockBurst unlockBurst; // optional — dark-fantasy purchase VFX
 
         [Header("Branch Colors")]
         [SerializeField] private Color offenseColor = new Color(0.85f, 0.25f, 0.20f);
@@ -103,6 +104,12 @@ namespace JollyLlama.SkillTreeSystem
         }
 
         // ── Pointer events ────────────────────────────────────────────────────────
+
+        /// <summary>Plays the unlock/rank-up VFX (ember burn, sparks, scale punch)
+        /// if an unlockBurst component is assigned. No-op otherwise, so this is
+        /// safe to call unconditionally from SkillTreePanel on every successful
+        /// purchase, whether or not this particular prefab has the effect wired up.</summary>
+        public void PlayUnlockBurst() => unlockBurst?.Play();
 
         private void OnClicked() => _panel.OnNodeButtonClicked(_node);
 

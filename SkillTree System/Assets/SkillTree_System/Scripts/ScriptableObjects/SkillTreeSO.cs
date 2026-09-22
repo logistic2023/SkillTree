@@ -105,17 +105,51 @@ namespace JollyLlama.SkillTreeSystem
 
         // ── Validation ────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Scans allNodes for data problems that can cause silent, hard-to-diagnose
+        /// misbehavior at runtime: null/missing entries, empty node ids, and duplicate
+        /// node ids (the most dangerous one — whichever node loses the race in
+        /// BuildCacheIfNeeded's TryAdd becomes permanently unreachable via GetNode(),
+        /// so anything that references it by id silently resolves to the wrong node,
+        /// or to null). Pure — never mutates the tree, safe to call any time.
+        ///
+        /// This exists as its own method (rather than being embedded only in
+        /// OnValidate, which is editor-only and never runs in a build) so
+        /// SkillTreeManager can run the exact same check at runtime on load — see
+        /// its IntegrityIssues property.
+        /// </summary>
+        public List<string> ValidateIntegrity()
+        {
+            var issues = new List<string>();
+            if (allNodes == null) return issues;
+
+            var seen = new HashSet<string>();
+            for (int i = 0; i < allNodes.Count; i++)
+            {
+                var node = allNodes[i];
+                if (node == null)
+                {
+                    issues.Add($"allNodes[{i}] is a null/missing reference.");
+                    continue;
+                }
+                if (string.IsNullOrEmpty(node.nodeId))
+                {
+                    issues.Add($"'{node.displayName}' (allNodes[{i}]) has an empty nodeId.");
+                    continue;
+                }
+                if (!seen.Add(node.nodeId))
+                    issues.Add($"Duplicate nodeId '{node.nodeId}' — '{node.displayName}' collides with an " +
+                        "earlier node. Only the first occurrence is reachable via GetNode(); this one is " +
+                        "silently unusable at runtime.");
+            }
+            return issues;
+        }
+
         private void OnValidate()
         {
             _nodeCache = null;
-
-            var seen = new HashSet<string>();
-            foreach (var node in allNodes)
-            {
-                if (node == null || string.IsNullOrEmpty(node.nodeId)) continue;
-                if (!seen.Add(node.nodeId))
-                    Debug.LogError($"[SkillTreeSO] Duplicate nodeId '{node.nodeId}' in '{name}'.");
-            }
+            foreach (var issue in ValidateIntegrity())
+                Debug.LogError($"[SkillTreeSO] {issue}", this);
         }
 
         // ── Cache ─────────────────────────────────────────────────────────────────
@@ -129,8 +163,7 @@ namespace JollyLlama.SkillTreeSystem
             foreach (var node in allNodes)
             {
                 if (node == null || string.IsNullOrEmpty(node.nodeId)) continue;
-                if (!_nodeCache.TryAdd(node.nodeId, node))
-                    Debug.LogError($"[SkillTreeSO] Duplicate nodeId '{node.nodeId}' — cannot cache.");
+                _nodeCache.TryAdd(node.nodeId, node); // first occurrence wins, deterministically
             }
         }
     }

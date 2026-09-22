@@ -678,7 +678,7 @@ MonoBehaviour:
   m_BlockingObjects: 0
   m_BlockingMask:
     serializedVersion: 2
-    m_Bits: 375
+    m_Bits: 4294967295
 --- !u!1 &1821275410837816858
 GameObject:
   m_ObjectHideFlags: 0
@@ -1770,7 +1770,7 @@ MonoBehaviour:
         m_CallState: 2
       - m_Target: {fileID: 4616846497715155470}
         m_TargetAssemblyTypeName: SkillTreePanel, Assembly-CSharp
-        m_MethodName: Open
+        m_MethodName: 
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -3241,6 +3241,7 @@ MonoBehaviour:
   descriptionText: {fileID: 1267355450563625876}
   effectsText: {fileID: 4295707122627417400}
   costText: {fileID: 7556869457180441399}
+  lockReasonText: {fileID: 0}
   offenseColor: {r: 0.85, g: 0.25, b: 0.2, a: 1}
   controlColor: {r: 0.2, g: 0.45, b: 0.85, a: 1}
   economyColor: {r: 0.85, g: 0.75, b: 0.15, a: 1}

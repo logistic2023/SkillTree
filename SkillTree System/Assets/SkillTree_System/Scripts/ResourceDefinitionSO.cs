@@ -27,7 +27,7 @@ namespace JollyLlama.SkillTreeSystem
         [Header("Stat Integration")]
         [Tooltip("Optional. When set, incoming drops of this resource are multiplied by this stat's " +
                  "total multiplier from StatSystem. Leave null if no drop scaling is needed.")]
-        public StatType? dropMultiplierStat = null;
+        public string dropMultiplierStat;
 
         [Tooltip("If true, drop multiplier stat is active. Uncheck to bypass stat scaling entirely.")]
         public bool useDropMultiplier = false;

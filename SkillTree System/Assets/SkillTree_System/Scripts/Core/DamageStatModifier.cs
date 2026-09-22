@@ -1,27 +1,28 @@
 using UnityEngine;
-
+using UnityEngine.Serialization;
 
 namespace JollyLlama.SkillTreeSystem
 {
     public class DamageStatModifier : MonoBehaviour
     {
         [Tooltip("If true, applies crit chance roll on every hit.")]
-        public bool applycrits = true;
+        [FormerlySerializedAs("applycrits")]
+        public bool applyCrits = true;
 
-        private StatSystem _stats;
+        private IStatRegistry _stats;
 
         private void Awake()
         {
-            _stats = StatSystem.Instance;
+            _stats = SkillTreeStatRegistry.Current;
         }
 
         public float Scale(float rawDamage)
         {
             if (_stats == null) return rawDamage;
 
-            float damage = _stats.GetValue(StatType.DamageMultiplier, rawDamage);
+            float damage = _stats.GetValue("DamageMultiplier", rawDamage);
 
-            if (applycrits)
+            if (applyCrits)
                 damage = ApplyCrit(damage);
 
             return damage;
@@ -31,8 +32,8 @@ namespace JollyLlama.SkillTreeSystem
         {
             if (_stats == null) return damage;
 
-            float critChance = _stats.GetValue(StatType.CritChance, 0f);
-            float critMult = _stats.GetValue(StatType.CritMultiplier, 1f);
+            float critChance = _stats.GetValue("CritChance", 0f);
+            float critMult   = _stats.GetValue("CritMultiplier", 1f);
 
             if (Random.value <= critChance)
             {

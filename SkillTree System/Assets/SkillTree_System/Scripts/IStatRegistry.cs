@@ -43,9 +43,16 @@ namespace JollyLlama.SkillTreeSystem
         /// <summary>(baseValue + total flat) × total multiplier.</summary>
         float GetValue(string statId, float baseValue);
         int   GetValueInt(string statId, int baseValue);
-    }
-}
 
-namespace JollyLlama.SkillTreeSystem
-{
+        /// <summary>
+        /// Groups a burst of register/unregister calls (e.g. a full tree reset) so
+        /// OnStatChanged fires once per affected stat at EndBatch() instead of once
+        /// per individual call.
+        /// </summary>
+        void BeginBatch();
+        void EndBatch();
+
+        /// <summary>Clears every registered bonus/multiplier for every stat.</summary>
+        void ClearAll();
+    }
 }

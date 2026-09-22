@@ -11,6 +11,3 @@ public class SkillTreeCursor : MonoBehaviour
 }
 
 
-namespace JollyLlama.SkillTreeSystem
-{
-}

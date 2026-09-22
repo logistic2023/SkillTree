@@ -2428,19 +2428,27 @@ namespace JollyLlama.SkillTreeSystem
                     bool nodeHl     = _selected == node || _selected == entry.node;
                     bool isCycEdge  = GetCyclicNodes().Contains(node) && GetCyclicNodes().Contains(entry.node);
 
-                    Color lineCol = isCycEdge  ? new Color(1f,   0.2f,  0.2f,  1f)
-                                  : isSelEdge  ? new Color(1f,   0.35f, 0.35f, 1f)
-                                  : isHovEdge  ? new Color(1f,   0.75f, 0.3f,  1f)
-                                  : nodeHl     ? new Color(0.85f,0.92f, 1f,    1f)
+                    // Cyclic edges get a distinct hue (magenta, not red) AND a dashed
+                    // stroke — a shape difference, not just a color difference, so it
+                    // reads clearly even for colorblind users and can't be mistaken
+                    // for the red "selected edge" state at a glance.
+                    Color lineCol = isCycEdge  ? new Color(0.95f, 0.15f, 0.85f, 1f)
+                                  : isSelEdge  ? new Color(1f,    0.35f, 0.35f, 1f)
+                                  : isHovEdge  ? new Color(1f,    0.75f, 0.3f,  1f)
+                                  : nodeHl     ? new Color(0.85f, 0.92f, 1f,    1f)
                                   :              ColLine;
-                    float lineW = isCycEdge ? 2.5f : (isSelEdge || isHovEdge) ? 3f : (nodeHl ? 2.5f : 1.5f);
+                    float lineW = isCycEdge ? 3f : (isSelEdge || isHovEdge) ? 3f : (nodeHl ? 2.5f : 1.5f);
 
                     float dist    = (toPt - fromPt).magnitude;
                     float tan     = Mathf.Clamp(dist * 0.35f, 20f, 80f);
                     Vector2 tangent = dirN * tan;
                     Vector2 ctrl1   = fromPt + tangent;
                     Vector2 ctrl2   = toPt   - tangent;
-                    Handles.DrawBezier(fromPt, toPt, ctrl1, ctrl2, lineCol, null, lineW);
+
+                    if (isCycEdge)
+                        DrawDashedBezier(fromPt, ctrl1, ctrl2, toPt, lineCol, lineW);
+                    else
+                        Handles.DrawBezier(fromPt, toPt, ctrl1, ctrl2, lineCol, null, lineW);
 
                     // Direction arrow at the curve's midpoint — points from the
                     // prerequisite (fromPt) toward the node that depends on it (toPt),
@@ -2479,6 +2487,37 @@ namespace JollyLlama.SkillTreeSystem
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Draws a cubic bezier as a dashed stroke by sampling it into short segments
+        /// and skipping every other chunk — used for cyclic-dependency edges so they
+        /// read as unmistakably different from a solid line, not just a different
+        /// color (which alone can be too easy to confuse with the red "selected"
+        /// state, especially for colorblind users).
+        /// </summary>
+        private static void DrawDashedBezier(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3,
+            Color color, float width, int segments = 48, int dashOn = 3, int dashOff = 2)
+        {
+            Vector2 Eval(float t)
+            {
+                float u = 1f - t;
+                return u * u * u * p0 + 3f * u * u * t * p1 + 3f * u * t * t * p2 + t * t * t * p3;
+            }
+
+            Color prevColor = Handles.color;
+            Handles.color = color;
+
+            int cycle = dashOn + dashOff;
+            for (int i = 0; i < segments; i++)
+            {
+                if (i % cycle >= dashOn) continue; // in the "gap" part of the dash pattern
+                float t0 = (float)i       / segments;
+                float t1 = (float)(i + 1) / segments;
+                Handles.DrawAAPolyLine(width, Eval(t0), Eval(t1));
+            }
+
+            Handles.color = prevColor;
         }
 
         /// <summary>
