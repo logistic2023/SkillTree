@@ -425,6 +425,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 2872203249164250286, guid: d0a6b16847cf7754cbb1f0630d2913c3, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 5515976484920625381, guid: d0a6b16847cf7754cbb1f0630d2913c3, type: 3}
       propertyPath: m_Name
       value: SkillTreeManager

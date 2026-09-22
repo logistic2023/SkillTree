@@ -17,5 +17,4 @@ MonoBehaviour:
   allNodes:
   - {fileID: 11400000, guid: 5f55b448ec2503249a6069e6277ec31b, type: 2}
   - {fileID: 11400000, guid: 7271b1eea3148034f8c38ee6703ad8db, type: 2}
-  - {fileID: 11400000, guid: 6df020e314cf1cd499f448e64aa6d899, type: 2}
   regions: []

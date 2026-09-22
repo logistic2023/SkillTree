@@ -16,10 +16,13 @@ namespace JollyLlama.SkillTreeSystem
     ///  1. Add a child Image under the node button (above background/icon, below
     ///     any "locked" overlay), sized to the node's bounds. Give it a Material
     ///     using "JollyLlama/UI/EmberBurn". Assign it to burnOverlay.
-    ///  2. Leave punchTarget/sparkParent empty to default to this node's own
+    ///  2. Add this component either on that same Image object or on a parent —
+    ///     both work; the burn overlay is hidden by disabling its Image component,
+    ///     never the GameObject, specifically so it can't disable itself.
+    ///  3. Leave punchTarget/sparkParent empty to default to this node's own
     ///     RectTransform, or assign explicitly if you want the punch/sparks
     ///     centred somewhere else.
-    ///  3. Call Play() — SkillNodeButton.PlayUnlockBurst() does this, wired from
+    ///  4. Call Play() — SkillNodeButton.PlayUnlockBurst() does this, wired from
     ///     SkillTreePanel right when a purchase/rank-up succeeds.
     /// </summary>
     public class SkillNodeUnlockBurst : MonoBehaviour
@@ -65,7 +68,11 @@ namespace JollyLlama.SkillTreeSystem
                 burnOverlay.material = _burnMatInstance;
                 burnOverlay.raycastTarget = false;
                 SetProgress(0f);
-                burnOverlay.gameObject.SetActive(false);
+                // Disable the Image *component*, not the GameObject — this script
+                // may live on the same GameObject as burnOverlay (a perfectly valid
+                // setup), and SetActive(false) on that GameObject would disable this
+                // script too, breaking the next Play() call's StartCoroutine.
+                burnOverlay.enabled = false;
             }
         }
 
@@ -85,7 +92,7 @@ namespace JollyLlama.SkillTreeSystem
 
             if (burnOverlay != null)
             {
-                burnOverlay.gameObject.SetActive(true);
+                burnOverlay.enabled = true;
                 float t = 0f;
                 while (t < burnDuration)
                 {
@@ -93,7 +100,7 @@ namespace JollyLlama.SkillTreeSystem
                     SetProgress(burnCurve.Evaluate(Mathf.Clamp01(t / burnDuration)));
                     yield return null;
                 }
-                burnOverlay.gameObject.SetActive(false);
+                burnOverlay.enabled = false;
             }
 
             _running = null;

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 3
   m_EditorClassIdentifier: 
   nodeId: 
-  displayName: 
+  displayName: 3
   icon: {fileID: 0}
   description: 
   branch: 0
@@ -25,7 +25,7 @@ MonoBehaviour:
   revealBoxRank: 0
   revealInfoRank: 0
   unlockRank: 1
-  graphPosition: {x: 0, y: 0}
+  graphPosition: {x: 300, y: 60}
   editorComment: 
   references:
     version: 2

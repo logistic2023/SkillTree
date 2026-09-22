@@ -112,15 +112,21 @@ namespace JollyLlama.SkillTreeSystem
 
         public void Open()
         {
-            if (!IsReady()) return;
+            if (!IsReady())
+            {
+                Debug.Log("is not ready");
+                return;
+            }
             gameObject.SetActive(true);
 
             if (_buttons.Count == 0)
             {
                 SpawnButtons();
                 SpawnConnections();
+                Debug.Log("spawning buttons");
             }
 
+            Debug.Log("Refreshing view");
             CenterView();
             RefreshAll();
             SetFeedback(string.Empty);
