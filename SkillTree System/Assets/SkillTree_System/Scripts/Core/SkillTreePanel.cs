@@ -25,10 +25,10 @@ namespace JollyLlama.SkillTreeSystem
 
         [Header("Tabs")]
         [SerializeField] private Button allTabButton;
-        [SerializeField] private Button offenseTabButton;
-        [SerializeField] private Button controlTabButton;
-        [SerializeField] private Button economyTabButton;
-        [SerializeField] private Button defenseTabButton;
+        [Tooltip("Parent for the generated branch tabs — typically has a HorizontalLayoutGroup. " +
+                 "One tab is spawned per entry in SkillTreeSO.branches, in list order.")]
+        [SerializeField] private RectTransform branchTabContainer;
+        [SerializeField] private SkillBranchTabButton branchTabPrefab;
 
         [Header("Tooltip")]
         [SerializeField] private SkillTreeTooltip tooltip;
@@ -58,7 +58,8 @@ namespace JollyLlama.SkillTreeSystem
 
         private SkillNodeSO  _selectedNode;
         private SkillNodeSO  _pendingRefundNode;
-        private SkillBranch? _activeFilter;
+        private SkillBranchSO _activeFilter;   // null = "All"
+        private readonly List<SkillBranchTabButton> _branchTabs = new();
         private int          _activeTabIndex;
 
         private Vector2   _panOffset;
@@ -77,10 +78,7 @@ namespace JollyLlama.SkillTreeSystem
             }
 
             allTabButton?.onClick.AddListener(() => SetFilterAnimated(null, 0));
-            offenseTabButton?.onClick.AddListener(() => SetFilterAnimated(SkillBranch.Offense, 1));
-            controlTabButton?.onClick.AddListener(() => SetFilterAnimated(SkillBranch.Control, 2));
-            economyTabButton?.onClick.AddListener(() => SetFilterAnimated(SkillBranch.Economy, 3));
-            defenseTabButton?.onClick.AddListener(() => SetFilterAnimated(SkillBranch.Defense, 4));
+            // Branch tabs are generated from the tree data — see BuildBranchTabs().
 
             unlockButton?.onClick.AddListener(OnUnlockClicked);
             refundConfirmButton?.onClick.AddListener(OnRefundConfirmed);
@@ -112,21 +110,16 @@ namespace JollyLlama.SkillTreeSystem
 
         public void Open()
         {
-            if (!IsReady())
-            {
-                Debug.Log("is not ready");
-                return;
-            }
+            if (!IsReady()) return;
             gameObject.SetActive(true);
 
             if (_buttons.Count == 0)
             {
+                BuildBranchTabs();
                 SpawnButtons();
                 SpawnConnections();
-                Debug.Log("spawning buttons");
             }
 
-            Debug.Log("Refreshing view");
             CenterView();
             RefreshAll();
             SetFeedback(string.Empty);
@@ -226,7 +219,44 @@ namespace JollyLlama.SkillTreeSystem
 
         // ── Tab slide ─────────────────────────────────────────────────────────────
 
-        private void SetFilterAnimated(SkillBranch? branch, int newTabIndex)
+        /// <summary>Spawns one tab per SkillBranchSO in the tree's branches list.</summary>
+        private void BuildBranchTabs()
+        {
+            foreach (var tab in _branchTabs) if (tab) Destroy(tab.gameObject);
+            _branchTabs.Clear();
+
+            var tree = skillTreeManager.GetTree();
+            if (tree?.branches == null) return;
+
+            if (branchTabContainer == null || branchTabPrefab == null)
+            {
+                if (tree.branches.Count > 0)
+                    SkillTreeLogger.LogError("SkillTreePanel",
+                        "branchTabContainer / branchTabPrefab not assigned — branch tabs won't be shown.");
+                return;
+            }
+
+            for (int i = 0; i < tree.branches.Count; i++)
+            {
+                var branch = tree.branches[i];
+                if (branch == null) continue;
+
+                int tabIndex = i + 1;   // 0 is the "All" tab
+                var tab = Instantiate(branchTabPrefab, branchTabContainer);
+                tab.name = $"Tab_{branch.DisplayName}";
+                tab.Initialize(branch, () => SetFilterAnimated(branch, tabIndex));
+                _branchTabs.Add(tab);
+            }
+
+            // Drop a filter that no longer exists in the (possibly reloaded) tree.
+            if (_activeFilter != null && !tree.branches.Contains(_activeFilter))
+            {
+                _activeFilter   = null;
+                _activeTabIndex = 0;
+            }
+        }
+
+        private void SetFilterAnimated(SkillBranchSO branch, int newTabIndex)
         {
             if (branch == _activeFilter) return;
             int direction  = newTabIndex > _activeTabIndex ? 1 : -1;
@@ -235,7 +265,7 @@ namespace JollyLlama.SkillTreeSystem
             _slideCoroutine = StartCoroutine(SlidePanelTransition(branch, direction));
         }
 
-        private IEnumerator SlidePanelTransition(SkillBranch? newBranch, int direction)
+        private IEnumerator SlidePanelTransition(SkillBranchSO newBranch, int direction)
         {
             float distance = slideDistance > 0f
                 ? slideDistance
@@ -289,7 +319,20 @@ namespace JollyLlama.SkillTreeSystem
 
                 var go  = Instantiate(nodeButtonPrefab, nodeLayer);
                 var btn = go.GetComponent<SkillNodeButton>();
-                if (btn == null) { Destroy(go); continue; }
+                if (btn == null)
+                {
+                    // Silently destroying this with no log was exactly the kind of
+                    // failure that's impossible to diagnose from the outside — the
+                    // panel just ends up with an empty Node Layer and zero console
+                    // output. Now it says exactly why.
+                    SkillTreeLogger.LogError("SkillTreePanel",
+                        $"nodeButtonPrefab ('{nodeButtonPrefab.name}') has no SkillNodeButton " +
+                        "component on its root GameObject — skipping node " +
+                        $"'{node.displayName}' ({node.nodeId}). Check that the script is attached " +
+                        "to the prefab's top-level object, not a child.");
+                    Destroy(go);
+                    continue;
+                }
 
                 var rt = go.GetComponent<RectTransform>();
                 rt.anchorMin        = new Vector2(0f, 1f);
@@ -438,6 +481,13 @@ namespace JollyLlama.SkillTreeSystem
                                    (conn.FromBtn.Node == _selectedNode ||
                                     conn.ToBtn.Node   == _selectedNode);
                 conn.SetHighlighted(highlighted);
+
+                // "Flow active" = the prerequisite side of this connection has at
+                // least one point spent — i.e. this path is actually live, not just
+                // a possible future route. Drives the ember color + travel animation.
+                bool flowActive = conn.FromBtn.Node != null
+                    && skillTreeManager.GetRank(conn.FromBtn.Node.nodeId) > 0;
+                conn.SetFlowActive(flowActive);
             }
         }
 
@@ -568,6 +618,7 @@ namespace JollyLlama.SkillTreeSystem
 
             if (gameObject.activeSelf)
             {
+                BuildBranchTabs();
                 SpawnButtons();
                 SpawnConnections();
                 CenterView();

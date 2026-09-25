@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace JollyLlama.SkillTreeSystem
 {
@@ -22,7 +23,25 @@ namespace JollyLlama.SkillTreeSystem
         public string description;
 
         [Header("Branch")]
-        public SkillBranch branch;
+        [Tooltip("The branch this node belongs to. Should be listed in the owning SkillTreeSO.branches.")]
+        [SerializeField] private SkillBranchSO _branch;
+
+        /// <summary>The branch this node belongs to. May be null (unassigned).</summary>
+        public SkillBranchSO branch
+        {
+            get => _branch;
+            set => _branch = value;
+        }
+
+        // Pre-refactor data: the old SkillBranch enum was serialized as an int under the
+        // key "branch". It's read into this field so the migration tool can map it onto a
+        // SkillBranchSO. -1 = nothing to migrate.
+        [FormerlySerializedAs("branch")]
+        [SerializeField, HideInInspector] private int legacyBranchIndex = -1;
+
+        /// <summary>Old enum index awaiting migration, or -1.</summary>
+        public int LegacyBranchIndex => legacyBranchIndex;
+        public void ClearLegacyBranch() => legacyBranchIndex = -1;
 
         [Header("Ranks")]
         [Min(1)] public int maxRanks = 1;
@@ -67,6 +86,7 @@ namespace JollyLlama.SkillTreeSystem
         [Tooltip("Designer note — visible as a speech bubble on the canvas. " +
                  "Has no effect at runtime.")]
         public string editorComment = "";
+
         // ── Validation ───────────────────────────────────────────────────────────
 
         private void OnValidate()
@@ -167,4 +187,3 @@ namespace JollyLlama.SkillTreeSystem
         [Min(1)] public int requiredRank = 1;
     }
 }
-

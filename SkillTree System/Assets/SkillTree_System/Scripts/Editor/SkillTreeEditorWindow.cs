@@ -28,16 +28,12 @@ namespace JollyLlama.SkillTreeSystem
         private bool  _divDrag  = false;
 
         // ── Colors ────────────────────────────────────────────────────────────────
-        private static readonly Color ColOffense = new Color(0.75f, 0.18f, 0.12f);
-        private static readonly Color ColControl = new Color(0.12f, 0.38f, 0.78f);
-        private static readonly Color ColEconomy = new Color(0.72f, 0.60f, 0.08f);
-        private static readonly Color ColDefense = new Color(0.42f, 0.42f, 0.46f);
+        private static readonly Color ColNoBranch = new Color(0.3f, 0.3f, 0.3f);
         private static readonly Color ColLine    = new Color(0.65f, 0.65f, 0.65f, 0.85f);
         private static readonly Color ColGrid    = new Color(0.26f, 0.26f, 0.26f, 0.45f);
 
         // ── State ─────────────────────────────────────────────────────────────────
         private SkillTreeSO        _tree;
-        private SkillTreeConfigSO  _config;    // optional — drives branch colors/labels
         private SkillNodeSO  _selected;
 
         private Vector2    _offset   = new Vector2(320f, 80f);
@@ -57,7 +53,7 @@ namespace JollyLlama.SkillTreeSystem
         // New-node defaults
         private string      _newId       = "";
         private string      _newName     = "";
-        private SkillBranch _newBranch   = SkillBranch.Offense;
+        private SkillBranchSO _newBranch;
         private int         _newMaxRanks = 1;
         private string      _newFolder   = "Assets/SkillTree_System/Data/SkillTree/Nodes";
 
@@ -75,7 +71,8 @@ namespace JollyLlama.SkillTreeSystem
         private static readonly string[] EffectTypeNames = { "Stat Multiplier", "Stat Flat Bonus" };
 
         private string      _bulkText   = "";
-        private SkillBranch _bulkBranch = SkillBranch.Offense;
+        private SkillBranchSO _bulkBranch;
+        private string        _branchFolder = "Assets/SkillTree_System/Data/SkillTree/Branches";
 
         // ── Arrow hover ───────────────────────────────────────────────────────────
         private SkillNodeSO _hoveredNode;
@@ -183,7 +180,7 @@ namespace JollyLlama.SkillTreeSystem
         private string     _quickCreateName   = "";
         private string     _quickCreateId     = "";
         private bool       _quickCreateIdEdited;
-        private SkillBranch _quickCreateBranch = SkillBranch.Offense;
+        private SkillBranchSO _quickCreateBranch;
         private const float QC_W = 260f;
         private const float QC_H = 148f;
 
@@ -213,14 +210,6 @@ namespace JollyLlama.SkillTreeSystem
         {
             Undo.undoRedoPerformed += OnUndoRedo;
             _templatesDirty = true;
-            // Auto-find config
-            if (_config == null)
-            {
-                var guids = AssetDatabase.FindAssets("t:SkillTreeConfigSO");
-                if (guids.Length > 0)
-                    _config = AssetDatabase.LoadAssetAtPath<SkillTreeConfigSO>(
-                        AssetDatabase.GUIDToAssetPath(guids[0]));
-            }
         }
 
         private void OnFocus() => _templatesDirty = true;
@@ -469,7 +458,7 @@ namespace JollyLlama.SkillTreeSystem
             string newId = EditorGUILayout.TextField("ID", _quickCreateId);
             if (newId != _quickCreateId) { _quickCreateId = newId; _quickCreateIdEdited = true; }
 
-            _quickCreateBranch = (SkillBranch)EditorGUILayout.EnumPopup("Branch", _quickCreateBranch);
+            _quickCreateBranch = BranchPopup("Branch", _quickCreateBranch, allowNone: false);
 
             GUILayout.Space(6);
             GUILayout.BeginHorizontal();
@@ -633,7 +622,7 @@ namespace JollyLlama.SkillTreeSystem
 
             _selected.nodeId      = Field("Node ID",      _selected.nodeId);
             _selected.displayName = Field("Display Name", _selected.displayName);
-            _selected.branch      = (SkillBranch)EditorGUILayout.EnumPopup("Branch", _selected.branch);
+            _selected.branch      = BranchPopup("Branch", _selected.branch);
             _selected.icon        = (Sprite)EditorGUILayout.ObjectField("Icon", _selected.icon, typeof(Sprite), false);
             EditorGUILayout.LabelField("Description", EditorStyles.miniLabel);
             _selected.description = EditorGUILayout.TextArea(_selected.description, GUILayout.MinHeight(36));
@@ -833,14 +822,6 @@ namespace JollyLlama.SkillTreeSystem
                 if (_tree != null)
                 {
                     PushRecentTree(_tree);
-                    // Auto-find a SkillTreeConfigSO in the project if none assigned
-                    if (_config == null)
-                    {
-                        var guids = AssetDatabase.FindAssets("t:SkillTreeConfigSO");
-                        if (guids.Length > 0)
-                            _config = AssetDatabase.LoadAssetAtPath<SkillTreeConfigSO>(
-                                AssetDatabase.GUIDToAssetPath(guids[0]));
-                    }
                     CenterView();
                 }
                 Repaint();
@@ -993,64 +974,7 @@ namespace JollyLlama.SkillTreeSystem
             _tree.treeDescription = AreaField("Description", _tree.treeDescription);
             if (EditorGUI.EndChangeCheck()) Dirty(_tree);
 
-            // ── Branch Colors ─────────────────────────────────────────────────────
-            GUILayout.Space(8); HLine();
-            Section("BRANCH COLORS");
-
-            // Config picker lives here — more discoverable than the toolbar
-            EditorGUI.BeginChangeCheck();
-            _config = (SkillTreeConfigSO)EditorGUILayout.ObjectField(
-                "Config", _config, typeof(SkillTreeConfigSO), false);
-            if (EditorGUI.EndChangeCheck()) Repaint();
-
-            if (_config == null)
-            {
-                EditorGUILayout.LabelField("Assign or create a SkillTreeConfigSO to customize colors.", EditorStyles.miniLabel);
-                if (GUILayout.Button("Create Config Asset", EditorStyles.miniButton))
-                {
-                    var cfg = CreateAsset<SkillTreeConfigSO>("Assets/SkillTree_System/Data", "SkillTreeConfig.asset");
-                    if (cfg != null) { _config = cfg; Repaint(); }
-                }
-            }
-            else
-            {
-                EditorGUI.BeginChangeCheck();
-                _config.branchColors ??= new System.Collections.Generic.List<BranchColorEntry>();
-
-                foreach (var entry in _config.branchColors)
-                {
-                    GUILayout.BeginHorizontal(EditorStyles.helpBox);
-
-                    // Live color swatch
-                    var newCol = EditorGUILayout.ColorField(GUIContent.none, entry.color,
-                        false, false, false, GUILayout.Width(40), GUILayout.Height(20));
-                    if (newCol != entry.color) entry.color = newCol;
-
-                    // Branch dot + enum name
-                    var dot = new GUIStyle(EditorStyles.label)
-                        { normal = { textColor = entry.color }, fontStyle = FontStyle.Bold };
-                    GUILayout.Label("●", dot, GUILayout.Width(14));
-                    GUILayout.Label(entry.branch.ToString(), EditorStyles.miniLabel, GUILayout.Width(58));
-
-                    // Optional custom display label
-                    EditorGUILayout.LabelField("Label:", EditorStyles.miniLabel, GUILayout.Width(36));
-                    string newLabel = EditorGUILayout.TextField(entry.label, GUILayout.ExpandWidth(true));
-                    if (newLabel != entry.label) entry.label = newLabel;
-
-                    GUILayout.EndHorizontal();
-                }
-
-                if (EditorGUI.EndChangeCheck())
-                {
-                    Dirty(_config);
-                    AssetDatabase.SaveAssets();
-                    Repaint();
-                }
-
-                GUILayout.Space(2);
-                if (GUILayout.Button("Ping Config Asset", EditorStyles.miniButton))
-                    EditorGUIUtility.PingObject(_config);
-            }
+            DrawBranchesSection();
 
             GUILayout.Space(8); HLine();
             Section($"NODES IN TREE  ({_tree.allNodes?.Count ?? 0})");
@@ -1256,7 +1180,7 @@ namespace JollyLlama.SkillTreeSystem
             Section("IDENTITY");
             _selected.nodeId      = Field("Node ID",      _selected.nodeId);
             _selected.displayName = Field("Display Name", _selected.displayName);
-            _selected.branch      = (SkillBranch)EditorGUILayout.EnumPopup("Branch", _selected.branch);
+            _selected.branch      = BranchPopup("Branch", _selected.branch);
             _selected.icon        = (Sprite)EditorGUILayout.ObjectField("Icon", _selected.icon, typeof(Sprite), false);
             GUILayout.Space(4);
             EditorGUILayout.LabelField("Description", EditorStyles.miniLabel);
@@ -1498,7 +1422,7 @@ namespace JollyLlama.SkillTreeSystem
             Section("CREATE NEW NODE");
             _newId       = Field("Node ID *",      _newId);
             _newName     = Field("Display Name *", _newName);
-            _newBranch   = (SkillBranch)EditorGUILayout.EnumPopup("Branch",    _newBranch);
+            _newBranch   = BranchPopup("Branch", _newBranch, allowNone: false);
             _newMaxRanks = EditorGUILayout.IntSlider("Max Ranks", _newMaxRanks, 1, 10);
             _newFolder   = Field("Save Folder", _newFolder);
 
@@ -1522,7 +1446,7 @@ namespace JollyLlama.SkillTreeSystem
             Section("BULK CREATE");
             EditorGUILayout.HelpBox("One 'ID|Name' per line. Pick branch then press Create All.", MessageType.Info);
             _bulkText   = EditorGUILayout.TextArea(_bulkText ?? "", GUILayout.MinHeight(80));
-            _bulkBranch = (SkillBranch)EditorGUILayout.EnumPopup("Branch", _bulkBranch);
+            _bulkBranch = BranchPopup("Branch", _bulkBranch, allowNone: false);
             if (GUILayout.Button("Create All Nodes")) BulkCreate();
 
             // ── Templates ─────────────────────────────────────────────────────────
@@ -1603,7 +1527,7 @@ namespace JollyLlama.SkillTreeSystem
                     GUILayout.EndHorizontal();
 
                     // Summary row
-                    string summary = $"{tpl.branch}  ×{tpl.maxRanks} ranks";
+                    string summary = $"{BranchName(tpl.branch)}  ×{tpl.maxRanks} ranks";
                     if (tpl.effects?.Count > 0) summary += $"  {tpl.effects.Count} fx";
                     if (tpl.costsPerRank?.Count > 0) summary += $"  {tpl.costsPerRank.Count} cost(s)";
                     EditorGUILayout.LabelField(summary, EditorStyles.miniLabel);
@@ -2670,7 +2594,9 @@ namespace JollyLlama.SkillTreeSystem
             string q = _searchQuery.ToLowerInvariant();
             if ((node.displayName ?? "").ToLowerInvariant().Contains(q)) return true;
             if ((node.nodeId     ?? "").ToLowerInvariant().Contains(q)) return true;
-            if (node.branch.ToString().ToLowerInvariant().Contains(q)) return true;
+            if (node.branch != null &&
+                (node.branch.DisplayName.ToLowerInvariant().Contains(q) ||
+                 (node.branch.branchId ?? "").ToLowerInvariant().Contains(q))) return true;
             if ((node.description ?? "").ToLowerInvariant().Contains(q)) return true;
             if (node.effects != null && node.effects.Any(e => e?.GetType().Name.ToLowerInvariant().Contains(q) == true)) return true;
             return false;
@@ -3852,16 +3778,16 @@ namespace JollyLlama.SkillTreeSystem
         private void AutoLayout()
         {
             if (_tree?.allNodes == null) return;
-            var cols = new Dictionary<SkillBranch, float>();
-            var rows = new Dictionary<SkillBranch, float>();
-            int ci = 0;
-            foreach (SkillBranch b in Enum.GetValues(typeof(SkillBranch)))
-            { cols[b] = ci++ * (NODE_W + NODE_SPACING_X) + 40f; rows[b] = 60f; }
+            // One column per branch in tree order; unassigned/unlisted branches go last.
+            var rows = new Dictionary<int, float>();
             foreach (var n in _tree.allNodes)
             {
                 if (n == null) continue;
-                n.graphPosition = new Vector2(cols[n.branch], rows[n.branch]);
-                rows[n.branch] += NODE_H + NODE_SPACING_Y;
+                Undo.RecordObject(n, "Auto Layout");
+                int col = BranchColumn(n.branch);
+                if (!rows.TryGetValue(col, out float y)) y = 60f;
+                n.graphPosition = new Vector2(col * (NODE_W + NODE_SPACING_X) + 40f, y);
+                rows[col] = y + NODE_H + NODE_SPACING_Y;
                 EditorUtility.SetDirty(n);
             }
             AssetDatabase.SaveAssets(); CenterView();
@@ -3990,9 +3916,9 @@ namespace JollyLlama.SkillTreeSystem
             return (mn, mx);
         }
 
-        private Vector2 AutoPosition(SkillBranch branch)
+        private Vector2 AutoPosition(SkillBranchSO branch)
         {
-            float colX = (int)branch * (NODE_W + NODE_SPACING_X) + 40f;
+            float colX = BranchColumn(branch) * (NODE_W + NODE_SPACING_X) + 40f;
             float maxY = 60f;
             if (_tree.allNodes != null)
                 foreach (var n in _tree.allNodes)
@@ -4033,22 +3959,257 @@ namespace JollyLlama.SkillTreeSystem
                           Mathf.Round(w.y / GRID_SIZE) * GRID_SIZE)
             : w;
 
-        private Color BranchColor(SkillBranch b)
+        private static Color  BranchColor(SkillBranchSO b) => b != null ? b.color : ColNoBranch;
+        private static string BranchName (SkillBranchSO b) => b != null ? b.DisplayName : "(no branch)";
+
+        /// <summary>Column index for layout: position in tree.branches, unlisted/null go after.</summary>
+        private int BranchColumn(SkillBranchSO b)
         {
-            if (_config != null) return _config.GetBranchColor(b);
-            return b switch
-            {
-                SkillBranch.Offense => ColOffense,
-                SkillBranch.Control => ColControl,
-                SkillBranch.Economy => ColEconomy,
-                SkillBranch.Defense => ColDefense,
-                _ => new Color(0.3f, 0.3f, 0.3f)
-            };
+            int count = _tree?.branches?.Count ?? 0;
+            int idx   = _tree != null ? _tree.IndexOfBranch(b) : -1;
+            return idx >= 0 ? idx : count;
         }
 
-        /// <summary>Returns the branch display label from config or enum name.</summary>
-        private string BranchLabel(SkillBranch b) =>
-            _config != null ? _config.GetBranchLabel(b) : b.ToString();
+        /// <summary>
+        /// Popup listing the tree's branches. With allowNone=false a null value is
+        /// coerced to the first branch (used by the creation fields). A branch that
+        /// isn't in the tree's list is still shown, flagged, so it doesn't get lost.
+        /// </summary>
+        private SkillBranchSO BranchPopup(string label, SkillBranchSO current, bool allowNone = true)
+        {
+            var list = _tree?.branches?.Where(b => b != null).ToList() ?? new List<SkillBranchSO>();
+
+            if (list.Count == 0)
+            {
+                GUILayout.BeginHorizontal();
+                EditorGUILayout.PrefixLabel(label);
+                EditorGUILayout.LabelField("No branches — add some in Tree Settings", EditorStyles.miniLabel);
+                GUILayout.EndHorizontal();
+                return current;
+            }
+
+            if (!allowNone && current == null) current = list[0];
+
+            var options = new List<SkillBranchSO>();
+            var labels  = new List<string>();
+            if (allowNone) { options.Add(null); labels.Add("(none)"); }
+            foreach (var b in list) { options.Add(b); labels.Add(b.DisplayName); }
+            if (current != null && !list.Contains(current))
+            { options.Add(current); labels.Add($"{current.DisplayName}  ⚠ not in tree"); }
+
+            int sel    = Mathf.Max(0, options.IndexOf(current));
+            int newSel = EditorGUILayout.Popup(label, sel, labels.ToArray());
+            return options[newSel];
+        }
+
+        /// <summary>Resolves a branch from CSV/JSON text: tree list first, then any project asset.</summary>
+        private SkillBranchSO FindBranch(string idOrName)
+        {
+            if (string.IsNullOrWhiteSpace(idOrName)) return null;
+            var inTree = _tree?.GetBranch(idOrName);
+            if (inTree != null) return inTree;
+            foreach (var guid in AssetDatabase.FindAssets("t:SkillBranchSO"))
+            {
+                var b = AssetDatabase.LoadAssetAtPath<SkillBranchSO>(AssetDatabase.GUIDToAssetPath(guid));
+                if (b != null && (string.Equals(b.branchId, idOrName.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                                  string.Equals(b.DisplayName, idOrName.Trim(), StringComparison.OrdinalIgnoreCase)))
+                    return b;
+            }
+            return null;
+        }
+
+        // ── Branches section (Tree Settings tab) ──────────────────────────────────
+        private string        _newBranchName = "";
+
+        /// <summary>
+        /// Swaps tree.branches[index] for another asset, optionally moving the old
+        /// branch's nodes (and templates) onto the new one.
+        /// </summary>
+        private void ReplaceBranch(int index, SkillBranchSO newBranch)
+        {
+            var oldBranch = _tree.branches[index];
+
+            int existing = _tree.branches.IndexOf(newBranch);
+            if (existing >= 0 && existing != index)
+            {
+                EditorUtility.DisplayDialog("Replace Branch",
+                    $"'{newBranch.DisplayName}' is already in this tree (row {existing + 1}).", "OK");
+                return;
+            }
+
+            var users = oldBranch == null ? new List<SkillNodeSO>()
+                : _tree.allNodes?.Where(n => n != null && n.branch == oldBranch).ToList() ?? new List<SkillNodeSO>();
+
+            bool moveNodes = false;
+            if (users.Count > 0)
+            {
+                int choice = EditorUtility.DisplayDialogComplex("Replace Branch",
+                    $"{users.Count} node(s) use '{BranchName(oldBranch)}'.\n\n" +
+                    $"Move them to '{newBranch.DisplayName}' as well?",
+                    "Move nodes", "Cancel", "Only replace in list");
+                if (choice == 1) return;          // Cancel
+                moveNodes = choice == 0;
+            }
+
+            Undo.SetCurrentGroupName("Replace Branch");
+            Undo.RecordObject(_tree, "Replace Branch");
+            _tree.branches[index] = newBranch;
+            Dirty(_tree);
+
+            if (moveNodes)
+            {
+                foreach (var n in users)
+                {
+                    Undo.RecordObject(n, "Replace Branch");
+                    n.branch = newBranch;
+                    Dirty(n);
+                }
+            }
+
+            if (_newBranch == oldBranch)         _newBranch         = newBranch;
+            if (_bulkBranch == oldBranch)        _bulkBranch        = newBranch;
+            if (_quickCreateBranch == oldBranch) _quickCreateBranch = newBranch;
+
+            AssetDatabase.SaveAssets();
+            Repaint();
+        }
+
+        private void DrawBranchesSection()
+        {
+            GUILayout.Space(8); HLine();
+            _tree.branches ??= new List<SkillBranchSO>();
+            Section($"BRANCHES  ({_tree.branches.Count})");
+
+            // Legacy data left over from the old SkillBranch enum
+            if (SkillBranchMigration.TreeNeedsMigration(_tree))
+            {
+                EditorGUILayout.HelpBox("Some nodes still use the old hard-coded SkillBranch enum. " +
+                    "Migrate to create matching SkillBranchSO assets and reassign them.", MessageType.Warning);
+                if (GUILayout.Button("Migrate Legacy Branches"))
+                {
+                    SkillBranchMigration.MigrateTree(_tree, _branchFolder);
+                    Repaint();
+                }
+            }
+
+            int removeAt = -1, moveUp = -1, moveDown = -1;
+            int replaceAt = -1; SkillBranchSO replaceWith = null;
+            for (int i = 0; i < _tree.branches.Count; i++)
+            {
+                var b = _tree.branches[i];
+                GUILayout.BeginVertical(EditorStyles.helpBox);
+                GUILayout.BeginHorizontal();
+
+                if (b == null)
+                {
+                    GUILayout.Label("(missing branch — drop one below)", EditorStyles.miniLabel, GUILayout.ExpandWidth(true));
+                    if (GUILayout.Button("✕", EditorStyles.miniButton, GUILayout.Width(20))) removeAt = i;
+                    GUILayout.EndHorizontal();
+                }
+                else
+                {
+
+                    EditorGUI.BeginChangeCheck();
+                    var newCol  = EditorGUILayout.ColorField(GUIContent.none, b.color, false, false, false,
+                                      GUILayout.Width(36), GUILayout.Height(18));
+                    var newName = EditorGUILayout.TextField(b.DisplayName, GUILayout.ExpandWidth(true));
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        Undo.RecordObject(b, "Edit Branch");
+                        b.color = newCol;
+                        b.displayName = newName;
+                        Dirty(b);
+                    }
+
+                    int used = _tree.allNodes?.Count(n => n != null && n.branch == b) ?? 0;
+                    GUILayout.Label($"{used}", EditorStyles.miniLabel, GUILayout.Width(22));
+
+                    GUI.enabled = i > 0;
+                    if (GUILayout.Button("▲", EditorStyles.miniButtonLeft,  GUILayout.Width(20))) moveUp = i;
+                    GUI.enabled = i < _tree.branches.Count - 1;
+                    if (GUILayout.Button("▼", EditorStyles.miniButtonMid,   GUILayout.Width(20))) moveDown = i;
+                    GUI.enabled = true;
+                    if (GUILayout.Button("◎", EditorStyles.miniButtonMid,   GUILayout.Width(20))) EditorGUIUtility.PingObject(b);
+                    if (GUILayout.Button("✕", EditorStyles.miniButtonRight, GUILayout.Width(20))) removeAt = i;
+
+                    GUILayout.EndHorizontal();
+                }
+
+                // Asset slot — drop or pick a different SkillBranchSO to replace this entry.
+                var picked = (SkillBranchSO)EditorGUILayout.ObjectField(b, typeof(SkillBranchSO), false);
+                if (picked != b && picked != null) { replaceAt = i; replaceWith = picked; }
+
+                GUILayout.EndVertical();
+            }
+
+            // Deferred: showing a dialog mid-OnGUI breaks the GUILayout pass.
+            if (replaceAt >= 0)
+            {
+                int idx = replaceAt; var with = replaceWith;
+                EditorApplication.delayCall += () => { if (this != null && _tree != null && idx < _tree.branches.Count) ReplaceBranch(idx, with); };
+            }
+
+            if (moveUp > 0 || moveDown >= 0 || removeAt >= 0)
+            {
+                Undo.RecordObject(_tree, "Edit Tree Branches");
+                if (moveUp > 0)
+                    (_tree.branches[moveUp - 1], _tree.branches[moveUp]) = (_tree.branches[moveUp], _tree.branches[moveUp - 1]);
+                else if (moveDown >= 0)
+                    (_tree.branches[moveDown + 1], _tree.branches[moveDown]) = (_tree.branches[moveDown], _tree.branches[moveDown + 1]);
+                else if (removeAt >= 0)
+                {
+                    var rb = _tree.branches[removeAt];
+                    int used = _tree.allNodes?.Count(n => n != null && n.branch == rb) ?? 0;
+                    if (used == 0 || EditorUtility.DisplayDialog("Remove Branch",
+                            $"{used} node(s) still use '{BranchName(rb)}'. They keep the reference but the " +
+                            "branch will have no runtime tab. (The asset itself is not deleted.)", "Remove", "Cancel"))
+                        _tree.branches.RemoveAt(removeAt);
+                }
+                Dirty(_tree);
+            }
+
+            // Add existing — adds as soon as an asset is dropped/picked.
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Add", EditorStyles.miniLabel, GUILayout.Width(28));
+            var toAdd = (SkillBranchSO)EditorGUILayout.ObjectField(null, typeof(SkillBranchSO), false);
+            GUILayout.EndHorizontal();
+            if (toAdd != null)
+            {
+                if (_tree.branches.Contains(toAdd))
+                    ShowNotification(new GUIContent($"'{toAdd.DisplayName}' is already in this tree"));
+                else
+                {
+                    Undo.RecordObject(_tree, "Add Branch");
+                    _tree.branches.Add(toAdd);
+                    Dirty(_tree);
+                }
+            }
+
+            // Create new
+            GUILayout.BeginHorizontal();
+            _newBranchName = EditorGUILayout.TextField(_newBranchName);
+            GUI.enabled = !string.IsNullOrWhiteSpace(_newBranchName);
+            if (GUILayout.Button("+ New Branch", EditorStyles.miniButton, GUILayout.Width(90)))
+            {
+                string display = _newBranchName.Trim();
+                string id      = Slugify(display);
+                var b = CreateAsset<SkillBranchSO>(_branchFolder, "Branch_" + id + ".asset");
+                if (b != null)
+                {
+                    b.branchId    = id;
+                    b.displayName = display;
+                    b.color       = Color.HSVToRGB(UnityEngine.Random.value, 0.65f, 0.8f);
+                    Dirty(b);
+                    Undo.RecordObject(_tree, "Add Branch");
+                    _tree.branches.Add(b);
+                    Dirty(_tree);
+                    _newBranchName = "";
+                }
+            }
+            GUI.enabled = true;
+            GUILayout.EndHorizontal();
+            _branchFolder = Field("Branch Folder", _branchFolder);
+        }
 
         // =========================================================================
         //  Copy / Paste
@@ -4215,7 +4376,7 @@ namespace JollyLlama.SkillTreeSystem
                 sb.AppendLine("    {");
                 sb.AppendLine($"      \"nodeId\":      {JsonStr(n.nodeId)},");
                 sb.AppendLine($"      \"displayName\": {JsonStr(n.displayName)},");
-                sb.AppendLine($"      \"branch\":      {JsonStr(n.branch.ToString())},");
+                sb.AppendLine($"      \"branch\":      {JsonStr(n.branch != null ? n.branch.branchId : "")},");
                 sb.AppendLine($"      \"maxRanks\":    {n.maxRanks},");
                 sb.AppendLine($"      \"description\": {JsonStr(n.description)},");
                 sb.AppendLine($"      \"graphX\":      {n.graphPosition.x},");
@@ -4324,7 +4485,7 @@ namespace JollyLlama.SkillTreeSystem
                 sb.AppendLine(string.Join(",",
                     CsvCell(n.nodeId),
                     CsvCell(n.displayName),
-                    CsvCell(n.branch.ToString()),
+                    CsvCell(n.branch != null ? n.branch.branchId : ""),
                     n.maxRanks.ToString(),
                     CsvCell(prereqs),
                     CsvCell(CostAtRank(1)),
@@ -4489,10 +4650,14 @@ namespace JollyLlama.SkillTreeSystem
                     if (!string.IsNullOrEmpty(displayName) && displayName != existingNode.displayName)
                     { existingNode.displayName = displayName; changed = true; }
 
-                    if (!string.IsNullOrEmpty(branchStr) &&
-                        Enum.TryParse<SkillBranch>(branchStr, true, out var branch) &&
-                        branch != existingNode.branch)
-                    { existingNode.branch = branch; changed = true; }
+                    if (!string.IsNullOrEmpty(branchStr))
+                    {
+                        var branch = FindBranch(branchStr);
+                        if (branch == null)
+                        { warnLog.AppendLine($"  • Row {li + 1}: unknown branch '{branchStr}' — kept existing."); warnings++; }
+                        else if (branch != existingNode.branch)
+                        { existingNode.branch = branch; changed = true; }
+                    }
 
                     if (!string.IsNullOrEmpty(ranksStr) &&
                         int.TryParse(ranksStr, out int maxRanks) &&
@@ -4520,7 +4685,9 @@ namespace JollyLlama.SkillTreeSystem
 
                 Undo.RegisterCreatedObjectUndo(node, "Import Node");
 
-                Enum.TryParse<SkillBranch>(branchStr, true, out var newBranch);
+                var newBranch = FindBranch(branchStr);
+                if (newBranch == null && !string.IsNullOrEmpty(branchStr))
+                { warnLog.AppendLine($"  • Row {li + 1}: unknown branch '{branchStr}' — left unassigned."); warnings++; }
                 int.TryParse(ranksStr, out int newRanks);
                 newRanks = Mathf.Max(1, newRanks);
 

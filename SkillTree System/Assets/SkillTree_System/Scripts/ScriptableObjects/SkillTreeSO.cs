@@ -27,6 +27,11 @@ namespace JollyLlama.SkillTreeSystem
 
         [TextArea(1, 2)] public string treeDescription;
 
+        [Header("Branches")]
+        [Tooltip("The branches this tree uses. List order = tab order in the runtime panel " +
+                 "and column order in the editor's Auto Layout.")]
+        public List<SkillBranchSO> branches = new();
+
         [Header("Nodes")] public List<SkillNodeSO> allNodes = new();
 
         [Header("Regions")]
@@ -77,7 +82,25 @@ namespace JollyLlama.SkillTreeSystem
 
         // ── Node queries ──────────────────────────────────────────────────────────
 
-        public List<SkillNodeSO> GetBranchNodes(SkillBranch branch)
+        /// <summary>Finds a branch in this tree by branchId (or display name), case-insensitive.</summary>
+        public SkillBranchSO GetBranch(string idOrName)
+        {
+            if (string.IsNullOrWhiteSpace(idOrName) || branches == null) return null;
+            idOrName = idOrName.Trim();
+            foreach (var b in branches)
+                if (b != null && string.Equals(b.branchId, idOrName, StringComparison.OrdinalIgnoreCase))
+                    return b;
+            foreach (var b in branches)
+                if (b != null && string.Equals(b.DisplayName, idOrName, StringComparison.OrdinalIgnoreCase))
+                    return b;
+            return null;
+        }
+
+        /// <summary>Index of the branch in this tree's list, or -1 if absent/null.</summary>
+        public int IndexOfBranch(SkillBranchSO branch)
+            => branch == null || branches == null ? -1 : branches.IndexOf(branch);
+
+        public List<SkillNodeSO> GetBranchNodes(SkillBranchSO branch)
             => allNodes.Where(n => n != null && n.branch == branch)
                 .OrderBy(n => n.graphPosition.y).ToList();
 
@@ -141,6 +164,29 @@ namespace JollyLlama.SkillTreeSystem
                     issues.Add($"Duplicate nodeId '{node.nodeId}' — '{node.displayName}' collides with an " +
                         "earlier node. Only the first occurrence is reachable via GetNode(); this one is " +
                         "silently unusable at runtime.");
+            }
+
+            // Branch checks
+            var seenBranchIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (branches != null)
+            {
+                for (int i = 0; i < branches.Count; i++)
+                {
+                    var b = branches[i];
+                    if (b == null) { issues.Add($"branches[{i}] is a null/missing reference."); continue; }
+                    if (string.IsNullOrWhiteSpace(b.branchId))
+                        issues.Add($"Branch '{b.name}' has an empty branchId.");
+                    else if (!seenBranchIds.Add(b.branchId))
+                        issues.Add($"Duplicate branchId '{b.branchId}' ('{b.name}'). CSV/JSON import will resolve to the first one.");
+                }
+            }
+
+            foreach (var node in allNodes)
+            {
+                if (node == null || node.branch == null) continue;
+                if (branches == null || !branches.Contains(node.branch))
+                    issues.Add($"Node '{node.displayName}' uses branch '{node.branch.DisplayName}', which is not " +
+                        "in this tree's branches list — it will have no tab in the runtime panel.");
             }
             return issues;
         }

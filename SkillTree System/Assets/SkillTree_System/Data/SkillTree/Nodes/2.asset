@@ -16,9 +16,12 @@ MonoBehaviour:
   displayName: 2
   icon: {fileID: 0}
   description: 
-  branch: 0
-  maxRanks: 1
-  costsPerRank: []
+  _branch: {fileID: 11400000, guid: 60eab088daa96834e8b3de35b2bfc608, type: 2}
+  legacyBranchIndex: -1
+  maxRanks: 2
+  costsPerRank:
+  - resource: {fileID: 11400000, guid: 18f537ef16f8f27488631113ec682176, type: 2}
+    amountPerRank: 100
   prerequisites:
   - node: {fileID: 11400000, guid: 5f55b448ec2503249a6069e6277ec31b, type: 2}
     requiredRank: 1
@@ -27,7 +30,7 @@ MonoBehaviour:
   revealBoxRank: 0
   revealInfoRank: 0
   unlockRank: 1
-  graphPosition: {x: 480, y: 60}
+  graphPosition: {x: 40, y: -200}
   editorComment: 
   references:
     version: 2

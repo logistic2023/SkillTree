@@ -119,6 +119,11 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!224 &171171473 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 2042934144227591417, guid: d0a6b16847cf7754cbb1f0630d2913c3, type: 3}
+  m_PrefabInstance: {fileID: 1402475346}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &297483060
 GameObject:
   m_ObjectHideFlags: 0
@@ -425,16 +430,29 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 2872203249164250286, guid: d0a6b16847cf7754cbb1f0630d2913c3, type: 3}
-      propertyPath: m_IsActive
-      value: 1
-      objectReference: {fileID: 0}
+    - target: {fileID: 4616846497715155470, guid: d0a6b16847cf7754cbb1f0630d2913c3, type: 3}
+      propertyPath: allTabButton
+      value: 
+      objectReference: {fileID: 4860262817051033628, guid: a497bbb46b0793946a161cb1ed936ff0, type: 3}
+    - target: {fileID: 4616846497715155470, guid: d0a6b16847cf7754cbb1f0630d2913c3, type: 3}
+      propertyPath: branchTabPrefab
+      value: 
+      objectReference: {fileID: 6491882259851469836, guid: a497bbb46b0793946a161cb1ed936ff0, type: 3}
+    - target: {fileID: 4616846497715155470, guid: d0a6b16847cf7754cbb1f0630d2913c3, type: 3}
+      propertyPath: branchTabContainer
+      value: 
+      objectReference: {fileID: 171171473}
     - target: {fileID: 5515976484920625381, guid: d0a6b16847cf7754cbb1f0630d2913c3, type: 3}
       propertyPath: m_Name
       value: SkillTreeManager
       objectReference: {fileID: 0}
     m_RemovedComponents: []
-    m_RemovedGameObjects: []
+    m_RemovedGameObjects:
+    - {fileID: 6209707110244065065, guid: d0a6b16847cf7754cbb1f0630d2913c3, type: 3}
+    - {fileID: 8064776595488388677, guid: d0a6b16847cf7754cbb1f0630d2913c3, type: 3}
+    - {fileID: 4045592943418429545, guid: d0a6b16847cf7754cbb1f0630d2913c3, type: 3}
+    - {fileID: 5893130235155305568, guid: d0a6b16847cf7754cbb1f0630d2913c3, type: 3}
+    - {fileID: 1835240190309235089, guid: d0a6b16847cf7754cbb1f0630d2913c3, type: 3}
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: d0a6b16847cf7754cbb1f0630d2913c3, type: 3}

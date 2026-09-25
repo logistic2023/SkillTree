@@ -14,6 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   treeName: MainSkillTree
   treeDescription: 
+  branches:
+  - {fileID: 11400000, guid: 815d267786bb786449a45899a98c8779, type: 2}
+  - {fileID: 11400000, guid: 60eab088daa96834e8b3de35b2bfc608, type: 2}
   allNodes:
   - {fileID: 11400000, guid: 5f55b448ec2503249a6069e6277ec31b, type: 2}
   - {fileID: 11400000, guid: 7271b1eea3148034f8c38ee6703ad8db, type: 2}

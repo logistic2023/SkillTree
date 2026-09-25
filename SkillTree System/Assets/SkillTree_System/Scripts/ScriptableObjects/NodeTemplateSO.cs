@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace JollyLlama.SkillTreeSystem
 {
@@ -17,7 +18,8 @@ namespace JollyLlama.SkillTreeSystem
         public string notes = "";
 
         [Header("Node Settings")]
-        public SkillBranch branch    = SkillBranch.Offense;
+        [SerializeField] private SkillBranchSO _branch;
+        public SkillBranchSO branch { get => _branch; set => _branch = value; }
         public Sprite       icon;
         public int          maxRanks = 1;
 
@@ -33,5 +35,11 @@ namespace JollyLlama.SkillTreeSystem
         public int  revealBoxRank  = 0;
         public int  revealInfoRank = 0;
         public int  unlockRank     = 1;
+
+        // Pre-refactor enum value — see SkillNodeSO.legacyBranchIndex.
+        [FormerlySerializedAs("branch")]
+        [SerializeField, HideInInspector] private int legacyBranchIndex = -1;
+        public int  LegacyBranchIndex => legacyBranchIndex;
+        public void ClearLegacyBranch() => legacyBranchIndex = -1;
     }
 }

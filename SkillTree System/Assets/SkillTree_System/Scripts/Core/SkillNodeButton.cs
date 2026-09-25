@@ -20,12 +20,10 @@ namespace JollyLlama.SkillTreeSystem
         [SerializeField] private GameObject         mysteryOverlay;
         [SerializeField] private SkillNodeUnlockBurst unlockBurst; // optional — dark-fantasy purchase VFX
 
-        [Header("Branch Colors")]
-        [SerializeField] private Color offenseColor = new Color(0.85f, 0.25f, 0.20f);
-        [SerializeField] private Color controlColor = new Color(0.20f, 0.45f, 0.85f);
-        [SerializeField] private Color economyColor = new Color(0.85f, 0.75f, 0.15f);
-        [SerializeField] private Color defenseColor = new Color(0.55f, 0.55f, 0.60f);
-        [SerializeField] private Color lockedColor  = new Color(0.25f, 0.25f, 0.25f);
+        [Header("Colors")]
+        [Tooltip("Used when the node has no branch assigned. Branch colors come from each SkillBranchSO.")]
+        [SerializeField] private Color unassignedColor = Color.white;
+        [SerializeField] private Color lockedColor     = new Color(0.25f, 0.25f, 0.25f);
 
         // ── Runtime ───────────────────────────────────────────────────────────────
 
@@ -127,13 +125,7 @@ namespace JollyLlama.SkillTreeSystem
 
         // ── Helpers ───────────────────────────────────────────────────────────────
 
-        private Color BranchColor(SkillBranch branch) => branch switch
-        {
-            SkillBranch.Offense => offenseColor,
-            SkillBranch.Control => controlColor,
-            SkillBranch.Economy => economyColor,
-            SkillBranch.Defense => defenseColor,
-            _ => Color.white
-        };
+        private Color BranchColor(SkillBranchSO branch)
+            => branch != null ? branch.color : unassignedColor;
     }
 }

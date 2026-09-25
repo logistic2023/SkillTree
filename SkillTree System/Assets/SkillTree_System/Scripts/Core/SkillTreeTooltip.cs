@@ -18,11 +18,11 @@ namespace JollyLlama.SkillTreeSystem
         [SerializeField] private TextMeshProUGUI  costText;
         [SerializeField] private TextMeshProUGUI  lockReasonText;
 
-        [Header("Branch Colors")]
-        [SerializeField] private Color offenseColor = new Color(0.85f, 0.25f, 0.20f);
-        [SerializeField] private Color controlColor = new Color(0.20f, 0.45f, 0.85f);
-        [SerializeField] private Color economyColor = new Color(0.85f, 0.75f, 0.15f);
-        [SerializeField] private Color defenseColor = new Color(0.55f, 0.55f, 0.60f);
+        [Header("Branch")]
+        [Tooltip("Optional. Shows the branch name (e.g. \"Offense\") tinted with its color.")]
+        [SerializeField] private TextMeshProUGUI branchNameText;
+        [Tooltip("Badge color when the node has no branch assigned.")]
+        [SerializeField] private Color unassignedColor = Color.white;
 
         [Header("Positioning")]
         [SerializeField] private Vector2 offset      = new Vector2(160f, 0f);
@@ -58,6 +58,17 @@ namespace JollyLlama.SkillTreeSystem
             // Branch badge
             if (branchBadge != null)
                 branchBadge.color = isMystery ? Color.gray : BranchColor(node.branch);
+
+            if (branchNameText != null)
+            {
+                bool showBranch = !isMystery && node.branch != null;
+                branchNameText.gameObject.SetActive(showBranch);
+                if (showBranch)
+                {
+                    branchNameText.text  = node.branch.DisplayName;
+                    branchNameText.color = node.branch.color;
+                }
+            }
 
             // Name
             if (nodeNameText != null)
@@ -185,13 +196,7 @@ namespace JollyLlama.SkillTreeSystem
             }
         }
 
-        private Color BranchColor(SkillBranch branch) => branch switch
-        {
-            SkillBranch.Offense => offenseColor,
-            SkillBranch.Control => controlColor,
-            SkillBranch.Economy => economyColor,
-            SkillBranch.Defense => defenseColor,
-            _ => Color.white
-        };
+        private Color BranchColor(SkillBranchSO branch)
+            => branch != null ? branch.color : unassignedColor;
     }
 }

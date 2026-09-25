@@ -4,64 +4,14 @@ using System.Collections.Generic;
 namespace JollyLlama.SkillTreeSystem
 {
     /// <summary>
-    /// Defines the display color and custom label for one SkillBranch value.
-    /// </summary>
-    [System.Serializable]
-    public class BranchColorEntry
-    {
-        public SkillBranch branch    = SkillBranch.Offense;
-        public Color       color     = new Color(0.75f, 0.18f, 0.12f);
-        [Tooltip("Optional display name override shown in the editor instead of the enum name.")]
-        public string      label     = "";
-    }
-
-    /// <summary>
     /// Global policy asset for the skill tree.
     /// Create one via Assets > Skill Tree > Skill Tree Config and assign it to SkillTreeManager.
     /// Individual nodes can override these rules by unchecking useGlobalVisibilityRules.
+    /// (Branch colors/labels now live on each SkillBranchSO asset.)
     /// </summary>
     [CreateAssetMenu(fileName = "SkillTreeConfig", menuName = "Skill Tree/Skill Tree Config")]
     public class SkillTreeConfigSO : ScriptableObject
     {
-        // ── Branch colors ─────────────────────────────────────────────────────────
-
-        [Header("Branch Colors")]
-        [Tooltip("Override the editor display colors for each branch. " +
-                 "Leave empty to use the built-in defaults.")]
-        public List<BranchColorEntry> branchColors = new List<BranchColorEntry>
-        {
-            new BranchColorEntry { branch = SkillBranch.Offense, color = new Color(0.75f, 0.18f, 0.12f), label = "" },
-            new BranchColorEntry { branch = SkillBranch.Control, color = new Color(0.12f, 0.38f, 0.78f), label = "" },
-            new BranchColorEntry { branch = SkillBranch.Economy, color = new Color(0.72f, 0.60f, 0.08f), label = "" },
-            new BranchColorEntry { branch = SkillBranch.Defense, color = new Color(0.42f, 0.42f, 0.46f), label = "" },
-        };
-
-        /// <summary>Returns the configured color for a branch, falling back to the built-in default.</summary>
-        public Color GetBranchColor(SkillBranch branch)
-        {
-            if (branchColors != null)
-                foreach (var e in branchColors)
-                    if (e.branch == branch) return e.color;
-            return branch switch
-            {
-                SkillBranch.Offense => new Color(0.75f, 0.18f, 0.12f),
-                SkillBranch.Control => new Color(0.12f, 0.38f, 0.78f),
-                SkillBranch.Economy => new Color(0.72f, 0.60f, 0.08f),
-                SkillBranch.Defense => new Color(0.42f, 0.42f, 0.46f),
-                _                   => new Color(0.3f,  0.3f,  0.3f),
-            };
-        }
-
-        /// <summary>Returns the display label for a branch (custom or enum name).</summary>
-        public string GetBranchLabel(SkillBranch branch)
-        {
-            if (branchColors != null)
-                foreach (var e in branchColors)
-                    if (e.branch == branch && !string.IsNullOrEmpty(e.label))
-                        return e.label;
-            return branch.ToString();
-        }
-
         // ── Visibility policy ─────────────────────────────────────────────────────
 
         [Header("Visibility Mode")]
