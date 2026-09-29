@@ -16,7 +16,7 @@ MonoBehaviour:
   displayName: attack damage 2x
   icon: {fileID: 0}
   description: 
-  _branch: {fileID: 11400000, guid: 60eab088daa96834e8b3de35b2bfc608, type: 2}
+  _branch: {fileID: 11400000, guid: 6bfd05824cae52241b5225eca266aa17, type: 2}
   legacyBranchIndex: -1
   maxRanks: 1
   costsPerRank: []

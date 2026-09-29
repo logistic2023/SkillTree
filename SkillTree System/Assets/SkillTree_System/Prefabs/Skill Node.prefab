@@ -592,7 +592,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1484819895521788119
 RectTransform:
   m_ObjectHideFlags: 0
@@ -730,10 +730,7 @@ MonoBehaviour:
   maxRankBadge: {fileID: 3888519159022699772}
   mysteryOverlay: {fileID: 1585853930689779921}
   unlockBurst: {fileID: 4134073497117572333}
-  offenseColor: {r: 0.85, g: 0.25, b: 0.2, a: 1}
-  controlColor: {r: 0.2, g: 0.45, b: 0.85, a: 1}
-  economyColor: {r: 0.85, g: 0.75, b: 0.15, a: 1}
-  defenseColor: {r: 0.55, g: 0.55, b: 0.6, a: 1}
+  unassignedColor: {r: 1, g: 1, b: 1, a: 1}
   lockedColor: {r: 0.25, g: 0.25, b: 0.25, a: 1}
 --- !u!114 &5245107950048096122
 MonoBehaviour:
@@ -903,7 +900,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1250054605798880939
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1267,7 +1264,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &2743633516470641395
 RectTransform:
   m_ObjectHideFlags: 0

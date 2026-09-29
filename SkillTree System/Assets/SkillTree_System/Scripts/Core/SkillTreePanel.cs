@@ -23,12 +23,6 @@ namespace JollyLlama.SkillTreeSystem
         [SerializeField] private GameObject nodeButtonPrefab;
         [SerializeField] private GameObject nodeConnectionPrefab;
 
-        [Header("Tabs")]
-        [SerializeField] private Button allTabButton;
-        [Tooltip("Parent for the generated branch tabs — typically has a HorizontalLayoutGroup. " +
-                 "One tab is spawned per entry in SkillTreeSO.branches, in list order.")]
-        [SerializeField] private RectTransform branchTabContainer;
-        [SerializeField] private SkillBranchTabButton branchTabPrefab;
 
         [Header("Tooltip")]
         [SerializeField] private SkillTreeTooltip tooltip;
@@ -43,10 +37,6 @@ namespace JollyLlama.SkillTreeSystem
         [SerializeField] private TextMeshProUGUI unlockButtonText;
         [SerializeField] private TextMeshProUGUI feedbackText;
 
-        [Header("Slide Animation")]
-        [SerializeField] private float slideDuration  = 0.25f;
-        [SerializeField] private float slideDistance  = 0f;
-
         [Header("Refund")]
         [SerializeField] private Button refundConfirmButton;
 
@@ -58,14 +48,10 @@ namespace JollyLlama.SkillTreeSystem
 
         private SkillNodeSO  _selectedNode;
         private SkillNodeSO  _pendingRefundNode;
-        private SkillBranchSO _activeFilter;   // null = "All"
-        private readonly List<SkillBranchTabButton> _branchTabs = new();
-        private int          _activeTabIndex;
 
         private Vector2   _panOffset;
         private Vector2   _dragStartPan;
         private Vector2   _dragStartMouse;
-        private Coroutine _slideCoroutine;
 
         // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -77,9 +63,6 @@ namespace JollyLlama.SkillTreeSystem
                 return;
             }
 
-            allTabButton?.onClick.AddListener(() => SetFilterAnimated(null, 0));
-            // Branch tabs are generated from the tree data — see BuildBranchTabs().
-
             unlockButton?.onClick.AddListener(OnUnlockClicked);
             refundConfirmButton?.onClick.AddListener(OnRefundConfirmed);
             if (refundConfirmButton != null) refundConfirmButton.gameObject.SetActive(false);
@@ -88,16 +71,17 @@ namespace JollyLlama.SkillTreeSystem
             skillTreeManager.OnNodeRefunded += OnNodeStateChanged;
             skillTreeManager.OnTreeLoaded   += OnTreeReloaded;
 
-            // Listen for any resource change so the HUD and node states stay fresh
-            ResourceManager.OnResourceChanged += OnResourceChanged;
+            // Listen for any balance change (from whichever wallet the manager uses)
+            // so the HUD and node states stay fresh
+            skillTreeManager.OnBalanceChanged += OnBalanceChanged;
         }
 
         private void Start() => gameObject.SetActive(false);
 
         private void OnDestroy()
         {
-            ResourceManager.OnResourceChanged -= OnResourceChanged;
             if (skillTreeManager == null) return;
+            skillTreeManager.OnBalanceChanged -= OnBalanceChanged;
             skillTreeManager.OnNodeUnlocked -= OnNodeStateChanged;
             skillTreeManager.OnNodeRefunded -= OnNodeStateChanged;
             skillTreeManager.OnTreeLoaded   -= OnTreeReloaded;
@@ -115,7 +99,6 @@ namespace JollyLlama.SkillTreeSystem
 
             if (_buttons.Count == 0)
             {
-                BuildBranchTabs();
                 SpawnButtons();
                 SpawnConnections();
             }
@@ -163,27 +146,12 @@ namespace JollyLlama.SkillTreeSystem
             if (_buttonMap.TryGetValue(node.nodeId, out var btn))
                 tooltip?.Show(node, skillTreeManager.GetRank(node.nodeId),
                     btn.GetComponent<RectTransform>().position,
-                    skillTreeManager.GetNodeVisibilityState(node),
-                    GetTooltipLockReason(node));
+                    skillTreeManager.GetNodeVisibilityState(node));
         }
 
         public void OnNodeHovered(SkillNodeSO node, Vector3 screenPos)
             => tooltip?.Show(node, skillTreeManager.GetRank(node.nodeId), screenPos,
-                skillTreeManager.GetNodeVisibilityState(node),
-                GetTooltipLockReason(node));
-
-        /// <summary>
-        /// Returns a lock reason worth showing in the tooltip, or null if the node
-        /// is already unlockable/unlocked (nothing to explain) or at max rank.
-        /// </summary>
-        private string GetTooltipLockReason(SkillNodeSO node)
-        {
-            var visibility = skillTreeManager.GetNodeVisibilityState(node);
-            if (visibility != NodeVisibilityState.Visible) return null; // Unlockable/Unlocked/Mystery/Hidden
-            if (skillTreeManager.IsMaxRank(node.nodeId)) return null;
-            string reason = skillTreeManager.GetLockReason(node.nodeId);
-            return string.IsNullOrEmpty(reason) ? null : reason;
-        }
+                skillTreeManager.GetNodeVisibilityState(node));
 
         public void OnNodeHoverEnd() => tooltip?.Hide();
 
@@ -195,111 +163,10 @@ namespace JollyLlama.SkillTreeSystem
             if (!string.IsNullOrEmpty(blockReason)) { SetFeedback(blockReason); return; }
 
             int currentRank = skillTreeManager.GetRank(node.nodeId);
-
-            var returned = skillTreeManager.PreviewRefund(node.nodeId);
-            string returnLine = FormatCosts(returned);
-
-            SetFeedback($"Refund '{node.displayName}' rank {currentRank}?\nYou will receive {returnLine} back.");
+            string costLine = node.GetCostString(currentRank);
+            SetFeedback($"Refund '{node.displayName}' rank {currentRank}?\nYou will receive {costLine} back.");
             _pendingRefundNode = node;
             if (refundConfirmButton != null) refundConfirmButton.gameObject.SetActive(true);
-        }
-
-        private static string FormatCosts(IReadOnlyList<(ResourceDefinitionSO Resource, int Amount)> costs)
-        {
-            if (costs == null || costs.Count == 0) return "nothing";
-            var sb = new System.Text.StringBuilder();
-            foreach (var (res, amt) in costs)
-            {
-                if (res == null) continue;
-                if (sb.Length > 0) sb.Append("  ");
-                sb.Append(res.Format(amt));
-            }
-            return sb.Length > 0 ? sb.ToString() : "nothing";
-        }
-
-        // ── Tab slide ─────────────────────────────────────────────────────────────
-
-        /// <summary>Spawns one tab per SkillBranchSO in the tree's branches list.</summary>
-        private void BuildBranchTabs()
-        {
-            foreach (var tab in _branchTabs) if (tab) Destroy(tab.gameObject);
-            _branchTabs.Clear();
-
-            var tree = skillTreeManager.GetTree();
-            if (tree?.branches == null) return;
-
-            if (branchTabContainer == null || branchTabPrefab == null)
-            {
-                if (tree.branches.Count > 0)
-                    SkillTreeLogger.LogError("SkillTreePanel",
-                        "branchTabContainer / branchTabPrefab not assigned — branch tabs won't be shown.");
-                return;
-            }
-
-            for (int i = 0; i < tree.branches.Count; i++)
-            {
-                var branch = tree.branches[i];
-                if (branch == null) continue;
-
-                int tabIndex = i + 1;   // 0 is the "All" tab
-                var tab = Instantiate(branchTabPrefab, branchTabContainer);
-                tab.name = $"Tab_{branch.DisplayName}";
-                tab.Initialize(branch, () => SetFilterAnimated(branch, tabIndex));
-                _branchTabs.Add(tab);
-            }
-
-            // Drop a filter that no longer exists in the (possibly reloaded) tree.
-            if (_activeFilter != null && !tree.branches.Contains(_activeFilter))
-            {
-                _activeFilter   = null;
-                _activeTabIndex = 0;
-            }
-        }
-
-        private void SetFilterAnimated(SkillBranchSO branch, int newTabIndex)
-        {
-            if (branch == _activeFilter) return;
-            int direction  = newTabIndex > _activeTabIndex ? 1 : -1;
-            _activeTabIndex = newTabIndex;
-            if (_slideCoroutine != null) StopCoroutine(_slideCoroutine);
-            _slideCoroutine = StartCoroutine(SlidePanelTransition(branch, direction));
-        }
-
-        private IEnumerator SlidePanelTransition(SkillBranchSO newBranch, int direction)
-        {
-            float distance = slideDistance > 0f
-                ? slideDistance
-                : (viewport != null ? viewport.rect.width : 800f);
-
-            Vector2 restPos = _panOffset;
-            Vector2 outPos  = restPos + new Vector2(-direction * distance, 0f);
-            yield return LerpPanRoot(restPos, outPos, slideDuration * 0.45f);
-
-            _activeFilter = newBranch;
-            ApplyFilterVisibility();
-            CenterView();
-
-            Vector2 newRestPos  = _panOffset;
-            Vector2 arriveFrom  = newRestPos + new Vector2(direction * distance, 0f);
-            panRoot.anchoredPosition = arriveFrom;
-            yield return LerpPanRoot(arriveFrom, newRestPos, slideDuration * 0.55f);
-
-            _slideCoroutine = null;
-        }
-
-        private IEnumerator LerpPanRoot(Vector2 from, Vector2 to, float duration)
-        {
-            if (duration <= 0f) { panRoot.anchoredPosition = to; yield break; }
-            float elapsed = 0f;
-            while (elapsed < duration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                float t  = Mathf.Clamp01(elapsed / duration);
-                t = t * t * (3f - 2f * t);
-                panRoot.anchoredPosition = Vector2.LerpUnclamped(from, to, t);
-                yield return null;
-            }
-            panRoot.anchoredPosition = to;
         }
 
         // ── Spawn ─────────────────────────────────────────────────────────────────
@@ -319,20 +186,7 @@ namespace JollyLlama.SkillTreeSystem
 
                 var go  = Instantiate(nodeButtonPrefab, nodeLayer);
                 var btn = go.GetComponent<SkillNodeButton>();
-                if (btn == null)
-                {
-                    // Silently destroying this with no log was exactly the kind of
-                    // failure that's impossible to diagnose from the outside — the
-                    // panel just ends up with an empty Node Layer and zero console
-                    // output. Now it says exactly why.
-                    SkillTreeLogger.LogError("SkillTreePanel",
-                        $"nodeButtonPrefab ('{nodeButtonPrefab.name}') has no SkillNodeButton " +
-                        "component on its root GameObject — skipping node " +
-                        $"'{node.displayName}' ({node.nodeId}). Check that the script is attached " +
-                        "to the prefab's top-level object, not a child.");
-                    Destroy(go);
-                    continue;
-                }
+                if (btn == null) { Destroy(go); continue; }
 
                 var rt = go.GetComponent<RectTransform>();
                 rt.anchorMin        = new Vector2(0f, 1f);
@@ -436,8 +290,8 @@ namespace JollyLlama.SkillTreeSystem
             foreach (var entry in resourceHUDEntries)
             {
                 if (entry.label == null || entry.resource == null) continue;
-                int balance   = ResourceManager.Instance != null
-                    ? ResourceManager.Instance.GetBalance(entry.resource) : 0;
+                var wallet    = skillTreeManager.Wallet;
+                int balance   = wallet != null ? wallet.GetBalance(entry.resource.resourceId) : 0;
                 entry.label.text  = entry.resource.Format(balance);
                 entry.label.color = entry.resource.displayColor;
             }
@@ -451,9 +305,8 @@ namespace JollyLlama.SkillTreeSystem
             {
                 if (btn == null || btn.Node == null) continue;
 
-                bool matchesFilter   = _activeFilter == null || btn.Node.branch == _activeFilter;
                 var  visibilityState = skillTreeManager.GetNodeVisibilityState(btn.Node);
-                bool shouldShow      = matchesFilter && visibilityState != NodeVisibilityState.Hidden;
+                bool shouldShow      = visibilityState != NodeVisibilityState.Hidden;
 
                 btn.gameObject.SetActive(shouldShow);
                 if (!shouldShow) continue;
@@ -481,13 +334,6 @@ namespace JollyLlama.SkillTreeSystem
                                    (conn.FromBtn.Node == _selectedNode ||
                                     conn.ToBtn.Node   == _selectedNode);
                 conn.SetHighlighted(highlighted);
-
-                // "Flow active" = the prerequisite side of this connection has at
-                // least one point spent — i.e. this path is actually live, not just
-                // a possible future route. Drives the ember color + travel animation.
-                bool flowActive = conn.FromBtn.Node != null
-                    && skillTreeManager.GetRank(conn.FromBtn.Node.nodeId) > 0;
-                conn.SetFlowActive(flowActive);
             }
         }
 
@@ -531,24 +377,12 @@ namespace JollyLlama.SkillTreeSystem
         {
             if (_selectedNode == null) return;
 
-            if (ResourceManager.Instance == null)
-            {
-                SetFeedback("ResourceManager not found!");
-                return;
-            }
-
             var result = skillTreeManager.TryUnlock(_selectedNode.nodeId);
 
             if (result.IsSuccess)
             {
-                string unlockedNodeId = _selectedNode.nodeId;
                 SetFeedback(string.Empty);
                 RefreshAll();
-
-                // Fire the unlock VFX after RefreshAll so it plays over the node's
-                // already-updated (unlocked/ranked-up) visual state, not the old one.
-                if (_buttonMap.TryGetValue(unlockedNodeId, out var btn))
-                    btn.PlayUnlockBurst();
             }
             else
             {
@@ -579,10 +413,6 @@ namespace JollyLlama.SkillTreeSystem
 
         private string GetRefundBlockReason(SkillNodeSO node)
         {
-            var config = skillTreeManager.config;
-            if (config != null && !config.AreRefundsAllowed())
-                return "Refunds are disabled.";
-
             int currentRank = skillTreeManager.GetRank(node.nodeId);
             int rankAfter   = currentRank - 1;
 
@@ -601,11 +431,10 @@ namespace JollyLlama.SkillTreeSystem
 
         // ── Events ────────────────────────────────────────────────────────────────
 
-        private void OnResourceChanged(ResourceDefinitionSO resource, int newAmount)
+        private void OnBalanceChanged(string resourceId, int newAmount)
         {
             if (!gameObject.activeSelf) return;
-            RefreshHUD();
-            RefreshAll();
+            RefreshAll();   // RefreshAll already refreshes the HUD
         }
 
         private void OnTreeReloaded()
@@ -618,7 +447,6 @@ namespace JollyLlama.SkillTreeSystem
 
             if (gameObject.activeSelf)
             {
-                BuildBranchTabs();
                 SpawnButtons();
                 SpawnConnections();
                 CenterView();

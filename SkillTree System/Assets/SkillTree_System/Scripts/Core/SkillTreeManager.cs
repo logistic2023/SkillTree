@@ -21,6 +21,12 @@ namespace JollyLlama.SkillTreeSystem
         public SkillTreeSO skillTree;
         public SkillTreeConfigSO config;
 
+        [Header("Economy")]
+        [Tooltip("Any component that implements ISkillTreeWallet (your game's economy adapter, " +
+                 "or the demo ResourceManager).\nLeave empty to auto-find one in the scene, " +
+                 "or call SetWallet() from code.")]
+        [SerializeField] private MonoBehaviour walletComponent;
+
         [Header("Save Settings")]
         public string saveFileName = "skilltree.json";
 
@@ -34,12 +40,99 @@ namespace JollyLlama.SkillTreeSystem
         public event Action<SkillNodeSO, int> OnNodeRefunded;
         public event Action                   OnTreeLoaded;
 
+        /// <summary>Forwarded from the active wallet (resourceId, newBalance).</summary>
+        public event Action<string, int>      OnBalanceChanged;
+
         // ── Private ───────────────────────────────────────────────────────────────
 
         private SkillTreeRuntimeState _state;
 
-        // Convenience accessor — null-safe
-        private ResourceManager Resources => ResourceManager.Instance;
+        private ISkillTreeWallet _wallet;
+        private bool             _autoSearchDone;
+
+        // ── Wallet ────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// The economy the tree spends from. Resolved lazily so script execution
+        /// order between this manager and the wallet component doesn't matter.
+        /// </summary>
+        public ISkillTreeWallet Wallet
+        {
+            get
+            {
+                // A destroyed Unity object still compares non-null through the interface
+                if (_wallet is UnityEngine.Object uo && uo == null)
+                {
+                    SetWallet(null);
+                    _autoSearchDone = false;   // allow finding a replacement
+                }
+
+                if (_wallet == null) ResolveWallet();
+                return _wallet;
+            }
+        }
+
+        /// <summary>Inject a wallet from code (DI container, game bootstrap, tests...).</summary>
+        public void SetWallet(ISkillTreeWallet wallet)
+        {
+            if (ReferenceEquals(_wallet, wallet)) return;
+            if (_wallet != null) _wallet.BalanceChanged -= ForwardBalanceChanged;
+            _wallet = wallet;
+            if (_wallet != null) _wallet.BalanceChanged += ForwardBalanceChanged;
+        }
+
+        private void ResolveWallet()
+        {
+            if (walletComponent is ISkillTreeWallet assigned)
+            {
+                SetWallet(assigned);
+                return;
+            }
+
+            if (_autoSearchDone) return;   // don't scan the scene on every query
+            _autoSearchDone = true;
+
+            foreach (var mb in FindObjectsOfType<MonoBehaviour>())
+            {
+                if (mb is ISkillTreeWallet found)
+                {
+                    SetWallet(found);
+                    SkillTreeLogger.Log("SkillTreeManager", $"Auto-found wallet: {mb.GetType().Name} on '{mb.name}'.");
+                    return;
+                }
+            }
+
+            SkillTreeLogger.LogError("SkillTreeManager",
+                "No ISkillTreeWallet found. Assign 'walletComponent' in the Inspector, " +
+                "call SetWallet() from code, or add the demo ResourceManager to the scene.");
+        }
+
+        private void ForwardBalanceChanged(string resourceId, int newBalance)
+            => OnBalanceChanged?.Invoke(resourceId, newBalance);
+
+        private static List<SkillTreeCost> ToWalletCosts(
+            IReadOnlyList<(ResourceDefinitionSO Resource, int Amount)> costs)
+        {
+            var list = new List<SkillTreeCost>(costs.Count);
+            foreach (var (res, amt) in costs)
+                if (res != null) list.Add(new SkillTreeCost(res.resourceId, amt));
+            return list;
+        }
+
+        private void OnValidate()
+        {
+            if (walletComponent != null && !(walletComponent is ISkillTreeWallet))
+            {
+                Debug.LogWarning($"[SkillTreeManager] '{walletComponent.GetType().Name}' does not implement " +
+                                 "ISkillTreeWallet — field cleared.", this);
+                walletComponent = null;
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (_wallet != null) _wallet.BalanceChanged -= ForwardBalanceChanged;
+        }
 
         // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -50,104 +143,23 @@ namespace JollyLlama.SkillTreeSystem
             LoadOrCreate();
         }
 
-        /// <summary>
-        /// Data-integrity problems found in the assigned SkillTreeSO the last time
-        /// LoadOrCreate() ran (duplicate node ids, null/empty entries) — see
-        /// SkillTreeSO.ValidateIntegrity(). Empty when the tree is clean.
-        ///
-        /// This is the runtime safety net for bad tree data: editor-time validation
-        /// (OnValidate, the editor window's cycle/orphan/duplicate badges) never runs
-        /// in an actual build, so without this a duplicate node id could ship
-        /// unnoticed and silently make part of the tree unreachable. Checking this
-        /// after LoadOrCreate() lets the game react deliberately — block the skill
-        /// tree UI, surface it in a QA/smoke-test harness, report it to analytics —
-        /// instead of relying on someone spotting a log line.
-        /// </summary>
-        public IReadOnlyList<string> IntegrityIssues { get; private set; } = Array.Empty<string>();
+        // Resolve early (after every Awake has run) so balance events reach the UI
+        // even before anything queries the wallet.
+        private void Start() => _ = Wallet;
 
         public void LoadOrCreate()
         {
-            IntegrityIssues = skillTree != null ? skillTree.ValidateIntegrity() : Array.Empty<string>();
-            foreach (var issue in IntegrityIssues)
-                SkillTreeLogger.LogError("SkillTreeManager", $"Tree data integrity: {issue}");
-
-            var loaded    = Load();
-            bool isNewState = loaded == null;
-            _state = loaded ?? new SkillTreeRuntimeState { saveVersion = SkillTreeSaveMigration.CurrentVersion };
-
-            bool migrated   = SkillTreeSaveMigration.Migrate(_state);
-            bool reconciled = ReconcileState();
-            if (!isNewState && (migrated || reconciled))
-                Save(); // persist the fix so we don't re-warn about the same issue every load
-
+            _state = Load() ?? new SkillTreeRuntimeState();
             ReplayAllEffects();
             OnTreeLoaded?.Invoke();
             SkillTreeLogger.Log("SkillTreeManager", $"Tree loaded. Unlocked nodes: {_state.nodeRanks.Count}");
-        }
-
-        /// <summary>
-        /// Sanity-checks loaded save data against the current SkillTreeSO after any
-        /// version migration has run, catching the two ways design changes to the tree
-        /// itself (independent of save schema) can leave old saves inconsistent:
-        ///   - A node the player had ranks in no longer exists (removed/renamed nodeId).
-        ///   - A node's maxRanks was reduced below a rank the player already has.
-        /// Returns true if anything was changed (so the caller knows to re-save).
-        /// </summary>
-        private bool ReconcileState()
-        {
-            if (skillTree?.allNodes == null || _state == null) return false;
-
-            bool changed = false;
-            // Built via foreach over the dictionary itself (not .Keys) to match the
-            // enumeration style already used elsewhere (see GetUnlockedIds), since
-            // SerializableDictionary doesn't expose a Keys property.
-            var idsToFix = new List<string>();
-            foreach (var kvp in _state.nodeRanks) idsToFix.Add(kvp.Key);
-
-            foreach (var nodeId in idsToFix)
-            {
-                var node = skillTree.GetNode(nodeId);
-
-                if (node == null)
-                {
-                    // The node this save has ranks in no longer exists in the tree.
-                    // We have no reliable way to know what it used to cost (it may have
-                    // had different costs per rank, and per-node spend isn't tracked
-                    // separately from the aggregate totalSpent), so the safest option is
-                    // to drop the orphaned entry rather than silently keep dead data
-                    // around forever. This is logged loudly since it represents player
-                    // progress disappearing and is worth a designer's attention.
-                    int lostRank = _state.GetRank(nodeId);
-                    _state.nodeRanks.Remove(nodeId);
-                    changed = true;
-                    SkillTreeLogger.LogWarning("SkillTreeManager",
-                        $"Save referenced unknown node '{nodeId}' at rank {lostRank} " +
-                        "(likely removed or renamed since this save was written) — entry dropped.");
-                    continue;
-                }
-
-                int rank = _state.GetRank(nodeId);
-                if (rank > node.maxRanks)
-                {
-                    // maxRanks was reduced below what this save already has. Clamp down
-                    // rather than let ReplayAllEffects apply ranks the node no longer
-                    // defines as valid.
-                    _state.nodeRanks[nodeId] = node.maxRanks;
-                    changed = true;
-                    SkillTreeLogger.LogWarning("SkillTreeManager",
-                        $"'{node.displayName}' save rank ({rank}) exceeds its current maxRanks " +
-                        $"({node.maxRanks}) — clamped down.");
-                }
-            }
-
-            return changed;
         }
 
         // ── Unlock ────────────────────────────────────────────────────────────────
 
         /// <summary>
         /// Attempts to unlock (or rank up) a node.
-        /// Reads available balances from ResourceManager.
+        /// Reads available balances from the active ISkillTreeWallet.
         /// On success, spends all costs atomically and returns them in UnlockResult.Costs.
         /// </summary>
         public UnlockResult TryUnlock(string nodeId)
@@ -167,21 +179,21 @@ namespace JollyLlama.SkillTreeSystem
             if (!skillTree.ArePrereqsMet(node, _state))
                 return UnlockResult.Fail($"Prerequisites not met for '{node.displayName}'.");
 
-            if (Resources == null)
-                return UnlockResult.Fail("ResourceManager not found in scene.");
+            var wallet = Wallet;
+            if (wallet == null)
+                return UnlockResult.Fail("No wallet available to pay for this node.");
 
-            int nextRank = currentRank + 1;
-            var costs    = node.GetAllCosts(nextRank);
+            int nextRank    = currentRank + 1;
+            var costs       = node.GetAllCosts(nextRank);
+            var walletCosts = ToWalletCosts(costs);
 
             // Check every resource before spending anything
-            if (!Resources.CanAfford(costs))
-            {
-                string missing = BuildAffordabilityMessage(node, nextRank);
-                return UnlockResult.Fail(missing);
-            }
+            if (!wallet.CanAfford(walletCosts))
+                return UnlockResult.Fail(BuildAffordabilityMessage(node, nextRank));
 
-            // Atomic spend
-            Resources.SpendAll(costs);
+            // Atomic spend — the wallet has the final say
+            if (!wallet.TrySpend(walletCosts))
+                return UnlockResult.Fail("Transaction was rejected by the wallet.");
 
             _state.AddRank(nodeId, costs);
             node.ApplyRank(nextRank);
@@ -195,24 +207,21 @@ namespace JollyLlama.SkillTreeSystem
 
         /// <summary>
         /// Legacy overload kept for call sites that still pass gold/shard ints.
-        /// Ignores the passed values — balances are read from ResourceManager directly.
+        /// Ignores the passed values — balances are read from the wallet.
         /// </summary>
-        [Obsolete("Pass no arguments — balances are read from ResourceManager automatically.")]
+        [Obsolete("Pass no arguments — balances are read from the wallet automatically.")]
         public UnlockResult TryUnlock(string nodeId, int ignoredGold, int ignoredShards)
             => TryUnlock(nodeId);
 
         // ── Refund ────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Attempts to refund the top rank of a node, returning its costs to ResourceManager.
+        /// Attempts to refund the top rank of a node, returning its costs to the wallet.
         /// </summary>
         public UnlockResult TryRefund(string nodeId)
         {
             if (!_state.IsUnlocked(nodeId))
                 return UnlockResult.Fail("Node is not unlocked.");
-
-            if (config != null && !config.AreRefundsAllowed())
-                return UnlockResult.Fail("Refunds are disabled.");
 
             var node = skillTree.GetNode(nodeId);
             if (node == null)
@@ -234,39 +243,24 @@ namespace JollyLlama.SkillTreeSystem
                 }
             }
 
-            var originalCosts = node.GetAllCosts(currentRank);
-            var returnedCosts = config != null
-                ? config.ApplyRefundPolicy(originalCosts)
-                : originalCosts;
+            var refundCosts = node.GetAllCosts(currentRank);
 
             node.RemoveRank(currentRank);
-            _state.RemoveRank(nodeId, originalCosts);
+            _state.RemoveRank(nodeId, refundCosts);
 
-            if (Resources != null)
-                Resources.RefundAll(returnedCosts);
+            var wallet = Wallet;
+            if (wallet != null)
+                wallet.Refund(ToWalletCosts(refundCosts));
+            else
+                SkillTreeLogger.LogWarning("SkillTreeManager",
+                    $"Refunded '{node.displayName}' but no wallet is available — resources were not returned.");
 
             Save();
 
             OnNodeRefunded?.Invoke(node, currentRank);
             SkillTreeLogger.Log("SkillTreeManager", $"Refunded '{node.displayName}' rank {currentRank}");
 
-            return UnlockResult.Success(returnedCosts);
-        }
-
-        /// <summary>
-        /// Previews what a refund of the top rank of a node would return, without
-        /// actually performing it. Respects the current RefundPolicy (Free/Taxed).
-        /// Returns an empty list if the node isn't unlocked.
-        /// </summary>
-        public List<(ResourceDefinitionSO Resource, int Amount)> PreviewRefund(string nodeId)
-        {
-            var node = skillTree?.GetNode(nodeId);
-            if (node == null || !_state.IsUnlocked(nodeId))
-                return new List<(ResourceDefinitionSO, int)>();
-
-            int currentRank = _state.GetRank(nodeId);
-            var originalCosts = node.GetAllCosts(currentRank);
-            return config != null ? config.ApplyRefundPolicy(originalCosts) : originalCosts;
+            return UnlockResult.Success(refundCosts);
         }
 
         // ── Reset ─────────────────────────────────────────────────────────────────
@@ -274,7 +268,7 @@ namespace JollyLlama.SkillTreeSystem
         [ContextMenu("Reset")]
         public void ResetTree()
         {
-            var stats = SkillTreeStatRegistry.Current;
+            var stats = StatSystem.Instance;
             stats?.BeginBatch();
             stats?.ClearAll();
             _state.Clear();
@@ -306,13 +300,14 @@ namespace JollyLlama.SkillTreeSystem
             int nextRank = _state.GetRank(nodeId) + 1;
             if (nextRank > node.maxRanks) return false;
             if (!skillTree.ArePrereqsMet(node, _state)) return false;
-            if (Resources == null) return false;
+            var wallet = Wallet;
+            if (wallet == null) return false;
 
-            return Resources.CanAfford(node.GetAllCosts(nextRank));
+            return wallet.CanAfford(ToWalletCosts(node.GetAllCosts(nextRank)));
         }
 
         /// <summary>Legacy overload — gold/shard args ignored.</summary>
-        [Obsolete("Use CanUnlock(string) — balances are read from ResourceManager automatically.")]
+        [Obsolete("Use CanUnlock(string) — balances are read from the wallet automatically.")]
         public bool CanUnlock(string nodeId, int ignoredGold, int ignoredShards)
             => CanUnlock(nodeId);
 
@@ -342,13 +337,13 @@ namespace JollyLlama.SkillTreeSystem
                 return "Prerequisites not met.";
             }
 
-            if (Resources == null) return "ResourceManager not found.";
+            if (Wallet == null) return "No wallet available.";
 
             return BuildAffordabilityMessage(node, currentRank + 1);
         }
 
         /// <summary>Legacy overload — gold/shard args ignored.</summary>
-        [Obsolete("Use GetLockReason(string) — balances are read from ResourceManager automatically.")]
+        [Obsolete("Use GetLockReason(string) — balances are read from the wallet automatically.")]
         public string GetLockReason(string nodeId, int ignoredGold, int ignoredShards)
             => GetLockReason(nodeId);
 
@@ -383,7 +378,7 @@ namespace JollyLlama.SkillTreeSystem
         }
 
         /// <summary>Legacy overload — gold/shard args ignored.</summary>
-        [Obsolete("Use GetNodeVisibilityState(SkillNodeSO) — balances are read from ResourceManager automatically.")]
+        [Obsolete("Use GetNodeVisibilityState(SkillNodeSO) — balances are read from the wallet automatically.")]
         public NodeVisibilityState GetNodeVisibilityState(SkillNodeSO node, int ignoredGold, int ignoredShards)
             => GetNodeVisibilityState(node);
 
@@ -392,7 +387,7 @@ namespace JollyLlama.SkillTreeSystem
 
         public SkillTreeSO           GetTree()  => skillTree;
         public SkillTreeRuntimeState GetState() => _state;
-        public IStatRegistry         Stats      => SkillTreeStatRegistry.Current;
+        public StatSystem            Stats      => StatSystem.Instance;
 
         // ── Save / Load ───────────────────────────────────────────────────────────
 
@@ -474,13 +469,14 @@ namespace JollyLlama.SkillTreeSystem
         /// </summary>
         private string BuildAffordabilityMessage(SkillNodeSO node, int rank)
         {
-            if (Resources == null) return "ResourceManager not found.";
+            var wallet = Wallet;
+            if (wallet == null) return "No wallet available.";
 
             foreach (var cost in node.costsPerRank)
             {
                 if (cost.resource == null) continue;
                 int required  = cost.GetAmount(rank);
-                int available = Resources.GetBalance(cost.resource);
+                int available = wallet.GetBalance(cost.resource.resourceId);
                 if (available < required)
                     return $"Need {cost.resource.Format(required)} " +
                            $"(have {cost.resource.Format(available)}).";
@@ -489,4 +485,4 @@ namespace JollyLlama.SkillTreeSystem
             return string.Empty;
         }
     }
-}
+}

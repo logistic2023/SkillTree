@@ -128,4 +128,4 @@ namespace JollyLlama.SkillTreeSystem
         private Color BranchColor(SkillBranchSO branch)
             => branch != null ? branch.color : unassignedColor;
     }
-}
+} 

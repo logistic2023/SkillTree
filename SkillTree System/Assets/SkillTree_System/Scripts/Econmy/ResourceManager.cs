@@ -4,7 +4,12 @@ using UnityEngine;
 
 namespace JollyLlama.SkillTreeSystem
 {
-    public class ResourceManager : MonoBehaviour
+    /// <summary>
+    /// Demo economy that ships with the skill tree. Implements ISkillTreeWallet so the
+    /// skill tree can use it, but the skill tree does not depend on it: replace it with
+    /// your own ISkillTreeWallet implementation and this component can be removed.
+    /// </summary>
+    public class ResourceManager : MonoBehaviour, ISkillTreeWallet
     {
         public static ResourceManager Instance { get; private set; }
 
@@ -119,10 +124,10 @@ namespace JollyLlama.SkillTreeSystem
             }
 
             // Apply stat-based drop multiplier if configured on the SO
-            if (resource.useDropMultiplier && !string.IsNullOrEmpty(resource.dropMultiplierStat)
-                && SkillTreeStatRegistry.Current != null)
+            // Apply stat-based drop multiplier if configured on the SO
+            if (resource.useDropMultiplier && StatSystem.Instance != null)
             {
-                float mult = SkillTreeStatRegistry.Current.GetTotalMultiplier(resource.dropMultiplierStat);
+                float mult = StatSystem.Instance.GetTotalMultiplier(resource.dropMultiplierStat);
                 amount = Mathf.Max(1, Mathf.RoundToInt(amount * mult));
             }
 
@@ -216,6 +221,48 @@ namespace JollyLlama.SkillTreeSystem
                 _records[kv.Key] = rec;
                 FireChanged(rec.Definition, rec.Balance);
             }
+        }
+
+        // ── ISkillTreeWallet ──────────────────────────────────────────────────────
+
+        int ISkillTreeWallet.GetBalance(string resourceId) => GetBalance(resourceId);
+
+        bool ISkillTreeWallet.CanAfford(IReadOnlyList<SkillTreeCost> costs)
+        {
+            foreach (var c in costs)
+                if (GetBalance(c.ResourceId) < c.Amount) return false;
+            return true;
+        }
+
+        bool ISkillTreeWallet.TrySpend(IReadOnlyList<SkillTreeCost> costs)
+        {
+            // Validate everything first so the spend is all-or-nothing
+            foreach (var c in costs)
+            {
+                if (c.Amount <= 0) continue;
+                if (!_records.ContainsKey(c.ResourceId) || GetBalance(c.ResourceId) < c.Amount)
+                    return false;
+            }
+            foreach (var c in costs)
+                if (c.Amount > 0) Spend(_records[c.ResourceId].Definition, c.Amount);
+            return true;
+        }
+
+        void ISkillTreeWallet.Refund(IReadOnlyList<SkillTreeCost> costs)
+        {
+            foreach (var c in costs)
+            {
+                if (c.Amount <= 0 || !_records.TryGetValue(c.ResourceId, out var rec)) continue;
+                rec.Balance += c.Amount;
+                _records[c.ResourceId] = rec;
+                FireChanged(rec.Definition, rec.Balance);
+            }
+        }
+
+        event Action<string, int> ISkillTreeWallet.BalanceChanged
+        {
+            add    => OnResourceChangedById += value;
+            remove => OnResourceChangedById -= value;
         }
 
         // ── Context menu — test without leaving the Inspector ─────────────────────

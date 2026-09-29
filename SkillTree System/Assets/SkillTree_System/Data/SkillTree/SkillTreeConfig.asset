@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: SkillTreeConfig
   m_EditorClassIdentifier: 
   visibilityMode: 0
-  defaultRevealBoxRank: 1
-  defaultRevealInfoRank: 1
-  defaultUnlockRank: 1
+  defaultRevealBoxRank: 0
+  defaultRevealInfoRank: 0
+  defaultUnlockRank: 0
   refundPolicy: 0
+  refundTaxReturnPercent: 50
