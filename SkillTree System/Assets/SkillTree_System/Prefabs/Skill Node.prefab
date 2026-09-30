@@ -25,12 +25,12 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1585853930689779921}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 7375196522758338292}
+  m_Father: {fileID: 1484819895521788119}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
@@ -604,7 +604,8 @@ RectTransform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 687965894139382628}
   m_Father: {fileID: 7375196522758338292}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -689,7 +690,6 @@ RectTransform:
   - {fileID: 6408524405148253608}
   - {fileID: 726159160899624617}
   - {fileID: 7538249530889320726}
-  - {fileID: 687965894139382628}
   - {fileID: 1250054605798880939}
   - {fileID: 2743633516470641395}
   - {fileID: 1484819895521788119}
@@ -728,7 +728,7 @@ MonoBehaviour:
   costText: {fileID: 8310905979217876742}
   lockedOverlay: {fileID: 8511514907629061926}
   maxRankBadge: {fileID: 3888519159022699772}
-  mysteryOverlay: {fileID: 1585853930689779921}
+  mysteryOverlay: {fileID: 5125228237039337004}
   unlockBurst: {fileID: 4134073497117572333}
   unassignedColor: {r: 1, g: 1, b: 1, a: 1}
   lockedColor: {r: 0.25, g: 0.25, b: 0.25, a: 1}

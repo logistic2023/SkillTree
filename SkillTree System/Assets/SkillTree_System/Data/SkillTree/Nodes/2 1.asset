@@ -10,10 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 238f4c6802c54d068c9f8378dd227cae, type: 3}
-  m_Name: attack_damage_2x
+  m_Name: 2 1
   m_EditorClassIdentifier: 
-  nodeId: damage_2x
-  displayName: attack damage 2x
+  nodeId: 2
+  displayName: 2
   icon: {fileID: 0}
   description: 
   _branch: {fileID: 11400000, guid: 6bfd05824cae52241b5225eca266aa17, type: 2}
@@ -22,13 +22,19 @@ MonoBehaviour:
   costsPerRank:
   - resource: {fileID: 11400000, guid: 18f537ef16f8f27488631113ec682176, type: 2}
     amountPerRank: 100
-  prerequisites: []
+  - resource: {fileID: 11400000, guid: 18f537ef16f8f27488631113ec682176, type: 2}
+    amountPerRank: 100
+  - resource: {fileID: 11400000, guid: 18f537ef16f8f27488631113ec682176, type: 2}
+    amountPerRank: 100
+  prerequisites:
+  - node: {fileID: 11400000, guid: 5f55b448ec2503249a6069e6277ec31b, type: 2}
+    requiredRank: 1
   effects: []
-  useGlobalVisibilityRules: 1
+  useGlobalVisibilityRules: 0
   revealBoxRank: 1
   revealInfoRank: 1
   unlockRank: 1
-  graphPosition: {x: 40, y: -480}
+  graphPosition: {x: 340, y: -400}
   editorComment: 
   references:
     version: 2
